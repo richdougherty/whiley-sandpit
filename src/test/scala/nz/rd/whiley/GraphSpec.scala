@@ -23,6 +23,9 @@ class TypeSpec extends FreeSpec with Matchers {
     "should handle the '{int x, int y}' type" in {
       roundTrip(Tree.Record(List(("x", Tree.Int), ("y", Tree.Int))))
     }
+    "should handle the 'µX.X|int' type" in {
+      roundTrip(Tree.Recursive("X0", Tree.Union(List(Tree.Variable("X0"), Tree.Int))))
+    }
   }
 
 }

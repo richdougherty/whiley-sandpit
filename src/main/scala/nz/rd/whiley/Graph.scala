@@ -3,8 +3,11 @@ package nz.rd.whiley
 import scala.collection.mutable
 
 final class Graph private[Graph] (
-    nodes: mutable.Map[Graph.Id, Graph.Node],
+    var root: Graph.Id,
+    val nodes: mutable.Map[Graph.Id, Graph.Node],
     private var nextId: Graph.Id) {
+
+  override def toString: String = s"Graph($root, $nodes)"
 
   import Graph.{Id, Node}
 
@@ -25,17 +28,65 @@ final class Graph private[Graph] (
   }
 
   def toTree: Tree = {
-    def convert(id: Id): Tree = {
-      apply(id) match {
-        case Node.Int => Tree.Int
-        case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
-        case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
-        case Node.Record(nodeFields) => Tree.Record(nodeFields.map {
-          case (name, fieldNode) => (name, convert(fieldNode))
-        })
+
+    sealed trait Recursion
+    final case object NotRecursive extends Recursion
+    final case class WillBind(name: String) extends Recursion
+    final case class BoundTo(name: String) extends Recursion
+
+    var recursiveNameCount = 0
+    val recursionMap = mutable.Map[Id, Recursion]()
+
+    def findRecursion(id: Id): Unit = {
+      recursionMap.get(id) match {
+        case None =>
+          recursionMap(id) = NotRecursive
+          apply(id) match {
+            case Node.Int => ()
+            case Node.Negation(nodeChild) => findRecursion(nodeChild)
+            case Node.Union(nodeChildren) => nodeChildren.foreach(findRecursion)
+            case Node.Record(nodeFields) => nodeFields.foreach {
+              case (_, fieldNode) => findRecursion(fieldNode)
+            }
+          }
+        case Some(NotRecursive) =>
+          val name = "X"+recursiveNameCount
+          recursiveNameCount += 1
+          recursionMap(id) = WillBind(name)
+        case Some(WillBind(_)) =>
+          // Already done
+        case Some(BoundTo(_)) =>
+          throw new AssertionError("Recursive types should not be bound yet")
       }
     }
-    convert(0)
+    findRecursion(root)
+
+    def convert(id: Id): Tree = {
+
+      def simpleConvert(id: Id): Tree = {
+        apply(id) match {
+          case Node.Int => Tree.Int
+          case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
+          case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
+          case Node.Record(nodeFields) => Tree.Record(nodeFields.map {
+            case (name, fieldNode) => (name, convert(fieldNode))
+          })
+        }
+      }
+
+      recursionMap.get(id) match {
+        case None =>
+          throw new AssertionError("All types should have known recursion");
+        case Some(NotRecursive) =>
+          simpleConvert(id)
+        case Some(WillBind(name)) =>
+          recursionMap(id) = BoundTo(name)
+          Tree.Recursive(name, simpleConvert(id))
+        case Some(BoundTo(name)) =>
+          Tree.Variable(name)
+      }
+    }
+    convert(root)
   }
 }
 
@@ -44,36 +95,44 @@ object Graph {
 
   def fromTree(tree: Tree): Graph = {
 
-    val a = new Graph(mutable.Map.empty, 0)
+    val g = new Graph(0, mutable.Map.empty, 0)
 
-    def addTree(t: Tree, id: Id = a.freshId()): Unit = {
+    def convert(t: Tree, nameBindings: Map[String, Id]): Id = {
       t match {
         case Tree.Int =>
-          a(id) = Node.Int
-        case Tree.Negation(treeChild) =>
-          val nodeChild: Id = a.freshId()
-          a(id) = Node.Negation(nodeChild)
-          addTree(treeChild, nodeChild)
-        case Tree.Union(treeChildren) =>
-          val nodeChildren: List[Id] = treeChildren.map(_ => a.freshId())
-          a(id) = Node.Union(nodeChildren)
-          (treeChildren zip nodeChildren).foreach {
-            case (childTree, childId) => addTree(childTree, childId)
-          }
+          g += Node.Int
+        case Tree.Negation(child) =>
+          g += Node.Negation(convert(child, nameBindings))
+        case Tree.Union(children) =>
+          g += Node.Union(children.map(convert(_, nameBindings)))
         case Tree.Record(treeFields) =>
-          val nodeFields: List[(String, Id)] = treeFields.map {
-            case (fieldName, fieldTree) =>
-              val fieldId = a.freshId()
-              (fieldName, fieldId)
+          g += Node.Record(treeFields.map {
+            case (name, child) => (name, convert(child, nameBindings))
+          })
+        case Tree.Recursive(name, body) =>
+          val tempId = g.freshId()
+          val bodyId = convert(body, nameBindings + (name -> tempId))
+          assert(bodyId != tempId, "Recursive type with no body")
+          def replaceId(id: Id): Id = if (id == tempId) bodyId else id
+          for ((id, node) <- g.nodes) {
+            val newNode = node match {
+              case Node.Int => Node.Int
+              case Node.Negation(c) => Node.Negation(replaceId(c))
+              case Node.Union(cs) =>
+                Node.Union(cs.map(replaceId))
+              case Node.Record(fs) => Node.Record(fs.map {
+                case (name, fieldId) => (name, replaceId(fieldId))
+              })
+            }
+            g(id) = newNode
           }
-          a(id) = Node.Record(nodeFields)
-          (treeFields zip nodeFields) foreach {
-            case ((_, fieldTree), (_, fieldId)) => addTree(fieldTree, fieldId)
-          }
+          bodyId
+        case Tree.Variable(name) =>
+          nameBindings(name)
       }
     }
-    addTree(tree)
-    a
+    g.root = convert(tree, Map.empty)
+    g
   }
 
   sealed trait Node
