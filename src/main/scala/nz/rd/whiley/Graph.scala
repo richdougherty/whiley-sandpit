@@ -29,21 +29,29 @@ object Graph {
 
     val a = new Graph(mutable.Map.empty, 0)
 
-    // TODO: Make tail recursive?
     def addTree(t: Tree, id: Id = a.freshId()): Unit = {
       t match {
         case Tree.Int =>
           a(id) = Node.Int
-        case Tree.Negation(child) =>
-          val childId: Id = a.freshId()
-          a(id) = Node.Negation(childId)
-          addTree(child, childId)
-        case Tree.Union(children) =>
-          val childrenIds: List[Id] = children.map(_ => a.freshId())
-          a(id) = Node.Union(childrenIds)
-          // Not tail recursive
-          for ((child, childId) <- (children zip childrenIds)) {
-            addTree(child, childId)
+        case Tree.Negation(treeChild) =>
+          val nodeChild: Id = a.freshId()
+          a(id) = Node.Negation(nodeChild)
+          addTree(treeChild, nodeChild)
+        case Tree.Union(treeChildren) =>
+          val nodeChildren: List[Id] = treeChildren.map(_ => a.freshId())
+          a(id) = Node.Union(nodeChildren)
+          (treeChildren zip nodeChildren).foreach {
+            case (childTree, childId) => addTree(childTree, childId)
+          }
+        case Tree.Record(treeFields) =>
+          val nodeFields: List[(String, Id)] = treeFields.map {
+            case (fieldName, fieldTree) =>
+              val fieldId = a.freshId()
+              (fieldName, fieldId)
+          }
+          a(id) = Node.Record(nodeFields)
+          (treeFields zip nodeFields) foreach {
+            case ((_, fieldTree), (_, fieldId)) => addTree(fieldTree, fieldId)
           }
       }
     }
@@ -56,5 +64,6 @@ object Graph {
     final case object Int extends Node
     final case class Negation(child: Id) extends Node
     final case class Union(children: List[Id]) extends Node
+    final case class Record(fields: List[(String,Id)]) extends Node
   }
 }

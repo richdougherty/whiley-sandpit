@@ -21,6 +21,12 @@ class TypeSpec extends FreeSpec with Matchers {
       g(2) should be (Graph.Node.Negation(3))
       g(3) should be (Graph.Node.Int)
     }
+    "should handle the '{int x, int y}' type" in {
+      val g = Graph.fromTree(Tree.Record(List(("x", Tree.Int), ("y", Tree.Int))))
+      g(0) should be (Graph.Node.Record(List(("x", 1), ("y", 2))))
+      g(1) should be (Graph.Node.Int)
+      g(2) should be (Graph.Node.Int)
+    }
   }
 
 }
