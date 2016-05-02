@@ -5,20 +5,37 @@ import scala.collection.mutable
 final class Graph private[Graph] (
     nodes: mutable.Map[Graph.Id, Graph.Node],
     private var nextId: Graph.Id) {
-  def freshId(): Graph.Id = {
+
+  import Graph.{Id, Node}
+
+  def freshId(): Id = {
     val id = nextId
     nextId += 1
     id
   }
-  def apply(id: Graph.Id): Graph.Node = nodes(id)
-  def update(id: Graph.Id, n: Graph.Node): Unit = nodes.update(id, n)
-  def +=(entry: (Graph.Id, Graph.Node)): Unit = {
+  def apply(id: Id): Node = nodes(id)
+  def update(id: Id, n: Node): Unit = nodes.update(id, n)
+  def +=(entry: (Id, Node)): Unit = {
     nodes += entry
   }
-  def +=(n: Graph.Node): Graph.Id = {
+  def +=(n: Node): Id = {
     val id = freshId()
     this +=(id, n)
     id
+  }
+
+  def toTree: Tree = {
+    def convert(id: Id): Tree = {
+      apply(id) match {
+        case Node.Int => Tree.Int
+        case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
+        case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
+        case Node.Record(nodeFields) => Tree.Record(nodeFields.map {
+          case (name, fieldNode) => (name, convert(fieldNode))
+        })
+      }
+    }
+    convert(0)
   }
 }
 
