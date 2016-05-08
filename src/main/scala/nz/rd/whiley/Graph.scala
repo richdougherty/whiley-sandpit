@@ -42,7 +42,7 @@ final class Graph private[Graph] (
         case None =>
           recursionMap(id) = NotRecursive
           apply(id) match {
-            case Node.Int => ()
+            case Node.Any | Node.Void | Node.Int => ()
             case Node.Negation(nodeChild) => findRecursion(nodeChild)
             case Node.Union(nodeChildren) => nodeChildren.foreach(findRecursion)
             case Node.Record(nodeFields) => nodeFields.foreach {
@@ -65,6 +65,8 @@ final class Graph private[Graph] (
 
       def simpleConvert(id: Id): Tree = {
         apply(id) match {
+          case Node.Any => Tree.Any
+          case Node.Void => Tree.Void
           case Node.Int => Tree.Int
           case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
           case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
@@ -99,6 +101,10 @@ object Graph {
 
     def convert(t: Tree, nameBindings: Map[String, Id]): Id = {
       t match {
+        case Tree.Any =>
+          g += Node.Any
+        case Tree.Void =>
+          g += Node.Void
         case Tree.Int =>
           g += Node.Int
         case Tree.Negation(child) =>
@@ -116,6 +122,8 @@ object Graph {
           def replaceId(id: Id): Id = if (id == tempId) bodyId else id
           for ((id, node) <- g.nodes) {
             val newNode = node match {
+              case Node.Any => Node.Any
+              case Node.Void => Node.Void
               case Node.Int => Node.Int
               case Node.Negation(c) => Node.Negation(replaceId(c))
               case Node.Union(cs) =>
@@ -137,6 +145,8 @@ object Graph {
 
   sealed trait Node
   object Node {
+    final case object Any extends Node
+    final case object Void extends Node
     final case object Int extends Node
     final case class Negation(child: Id) extends Node
     final case class Union(children: List[Id]) extends Node

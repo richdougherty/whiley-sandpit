@@ -11,6 +11,12 @@ class TypeSpec extends FreeSpec with Matchers {
   }
 
   "Graph" - {
+    "should handle the 'any' type" in {
+      roundTrip(Tree.Any)
+    }
+    "should handle the 'void' type" in {
+      roundTrip(Tree.Void)
+    }
     "should handle the 'int' type" in {
       roundTrip(Tree.Int)
     }

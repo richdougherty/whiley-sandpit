@@ -6,12 +6,13 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import nz.rd.whiley.Graph.{ Id, Node }
 
-final class IntersectionAlgorithm(g: Graph, intersections: mutable.Map[(Id, Id), Intersections]) {
+final class IntersectionAlgorithm(
+    val g: Graph, intersections: mutable.Map[(Id, Id), Intersections]) {
 
   def get(a: Id, b: Id): Intersections = {
     // Normalise key order
     val key: (Id, Id) = if (a <= b) (a, b) else (b, a)
-    intersections(key)
+    intersections.getOrElseUpdate(key, Intersections())
   }
 
   private def pairs[A](seq: Iterable[A]): Iterable[(A, A)] = {
@@ -24,11 +25,6 @@ final class IntersectionAlgorithm(g: Graph, intersections: mutable.Map[(Id, Id),
     headsAndTails(seq, Vector.empty).flatMap {
       case (head, tail) => Vector((head, head)) ++ tail.map((head, _))
     }
-  }
-
-  for ((a, b) <- pairs(g.nodes.keys)) {
-    val key: (Id, Id) = if (a <= b) (a, b) else (b, a)
-    intersections(key) = Intersections()
   }
 
   abstract class Has[N <: Node : ClassTag] {
@@ -64,12 +60,11 @@ final class IntersectionAlgorithm(g: Graph, intersections: mutable.Map[(Id, Id),
       for (((a: Id, an: Node), (b: Id, bn: Node)) <- pairs(g.nodes)) {
         (a, b) match {
           case (_, _) if an == bn =>
-            // TODO: Needs changing for any/void
             val ints = get(a, b)
-            ints.pp = Some(NonEmpty)
+            ints.pp = Some(if (an == Node.Void) Empty else NonEmpty)
             ints.pn = Some(Empty)
             ints.np = Some(Empty)
-            ints.nn = Some(NonEmpty)
+            ints.nn = Some(if (an == Node.Any) Empty else NonEmpty)
           case Has.Negation(ints, id, Node.Negation(c), oid) =>
             val childInts = get(c, oid)
             ints.pp = childInts.pp.map(_.inverse)
