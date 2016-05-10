@@ -82,13 +82,39 @@ final class IntersectionAlgorithm(
   def calculate(): Unit = {
 
     fixpoint {
-      (g.root, g.nodes.toList)
+      (g.root, g.nodes.toMap)
     } {
+
+      // Find possibly-contractive types
+
+      val possiblyContractive = mutable.Map.empty[Id, Boolean]
+      def getContractive(id: Id) = possiblyContractive.getOrElse(id, false)
+
+      fixpoint {
+        possiblyContractive.toMap
+      } {
+        for ((id, node) <- g.nodes) {
+          node match {
+            case Node.Any => possiblyContractive(id) = true
+            case Node.Void => possiblyContractive(id) = true
+            case Node.Int => possiblyContractive(id) = true
+            case Node.Union(children) =>
+              if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
+            case Node.Negation(child) => possiblyContractive(id) = getContractive(child)
+          }
+        }
+      }
+
+      // Mark non-contractive types as Void
+
+      for (id <- g.nodes.keys) {
+        if (getContractive(id) == false) { g.nodes(id) = Node.Void }
+      }
 
       // Simple, structural simplifications
 
       fixpoint {
-        (g.root, g.nodes.toList)
+        (g.root, g.nodes.toMap)
       } {
         for ((id, node) <- g.nodes) {
           node match {
@@ -147,9 +173,7 @@ final class IntersectionAlgorithm(
       // Calculate emptiness of nodes and their negations
 
       fixpoint {
-        contents.toList.map {
-          case (key, contents) => (key, (contents.p, contents.n))
-        }
+        contents.toMap.mapValues(v => (v.p, v.n))
       } {
         for ((id, node) <- g.nodes) {
           val conts = getContents(id)
@@ -178,9 +202,7 @@ final class IntersectionAlgorithm(
       // Calculate emptiness of intersections between nodes and their negations
 
       fixpoint {
-        intersections.toList.map {
-          case (key, ints) => (key, (ints.pp, ints.pn, ints.np, ints.nn))
-        }
+        intersections.toMap.mapValues(ints => (ints.pp, ints.pn, ints.np, ints.nn))
       } {
         for (((a: Id, an: Node), (b: Id, bn: Node)) <- pairs(g.nodes)) {
           (a, b) match {
@@ -236,7 +258,7 @@ final class IntersectionAlgorithm(
       // Use intersection information to simplify unions
 
       fixpoint {
-        (g.root, g.nodes.toList)
+        (g.root, g.nodes.toMap)
       } {
         for ((id, node) <- g.nodes) {
           node match {
