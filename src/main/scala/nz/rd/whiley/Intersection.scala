@@ -68,6 +68,7 @@ final class IntersectionAlgorithm(
     object Void extends Has[Node.Void.type]
     object Union extends Has[Node.Union]
     object Negation extends Has[Node.Negation]
+    object Record extends Has[Node.Record]
   }
 
   object AnyNodes {
@@ -101,6 +102,8 @@ final class IntersectionAlgorithm(
             case Node.Union(children) =>
               if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
             case Node.Negation(child) => possiblyContractive(id) = getContractive(child)
+            case Node.Record(fields) =>
+              if (fields.map(_._2).forall(getContractive(_))) { possiblyContractive(id) = true }
           }
         }
       }
@@ -166,17 +169,26 @@ final class IntersectionAlgorithm(
                 case _ =>
                   ()
               }
+            case Node.Record(fields) =>
+              if (fields.map(_._2).exists(g.nodes(_) == Node.Void)) {
+                // If there's a Void node, then replace Record with Void
+                g.nodes(id) = Node.Void
+              }
           }
         }
       }
 
-      // Calculate emptiness of nodes and their negations
+      // Calculate emptiness of nodes and their negations; possibly change some
+      // nodes to Any or Void, based on their emptiness
 
       fixpoint {
-        contents.toMap.mapValues(v => (v.p, v.n))
+        ((g.root, g.nodes.toMap), contents.toMap.mapValues(v => (v.p, v.n)))
       } {
         for ((id, node) <- g.nodes) {
           val conts = getContents(id)
+
+          // Use node types to calculate emptiness
+
           node match {
             case Node.Any =>
               conts.p = Some(NonEmpty)
@@ -195,6 +207,25 @@ final class IntersectionAlgorithm(
               val childContent = getContents(child)
               conts.p = childContent.n
               conts.n = childContent.p
+            case Node.Record(fields) =>
+              val fieldConts = fields.map(_._2).map(getContents(_))
+              if (fieldConts.forall(_.p == Some(NonEmpty))) {
+                conts.p = Some(NonEmpty)
+              } else if (fieldConts.exists(_.p == Some(Empty))) {
+                conts.p = Some(Empty)
+              }
+              conts.n = Some(NonEmpty)
+          }
+
+          // Use node emptiness info to replace nodes that are equivalent to Any or Void
+          // This may add extra information about the nodes' emptiness, e.g. if a node
+          // is Empty then it is Any and therefore its negation must be NonEmpty. (The
+          // extra information will be added in the next pass through the loop.)
+
+          if (conts.p == Some(Empty)) {
+            g.nodes(id) = Node.Void
+          } else if (conts.n == Some(Empty)) {
+            g.nodes(id) = Node.Any
           }
         }
       }
@@ -207,7 +238,7 @@ final class IntersectionAlgorithm(
         for (((a: Id, an: Node), (b: Id, bn: Node)) <- pairs(g.nodes)) {
           (a, b) match {
 
-            // Types with nodes that are the same
+            // Self-intersections
 
             case AnyNodes(ints, aid, anode, bid, bnode) if anode == bnode =>
               val ints = getInts(a, b)
@@ -231,6 +262,21 @@ final class IntersectionAlgorithm(
               if (childrenInts.exists(_.pn == Some(NonEmpty))) { ints.pn = Some(NonEmpty) }
               if (childrenInts.forall(_.np == Some(Empty))) { ints.np = Some(Empty) }
               if (childrenInts.forall(_.nn == Some(Empty))) { ints.nn = Some(Empty) }
+            case Has.Record(ints, id, Node.Record(fields), oid) =>
+
+              // TODO: TODO
+
+              // val otherNode = g.nodes(oid)
+              // otherNode match {
+              //   case Node.Record(otherFields) if fields == otherFields =>
+
+              // }
+
+              // val childrenInts = children.map(getInts(_, oid))
+              // if (childrenInts.exists(_.pp == Some(NonEmpty))) { ints.pp = Some(NonEmpty) }
+              // if (childrenInts.exists(_.pn == Some(NonEmpty))) { ints.pn = Some(NonEmpty) }
+              // if (childrenInts.forall(_.np == Some(Empty))) { ints.np = Some(Empty) }
+              // if (childrenInts.forall(_.nn == Some(Empty))) { ints.nn = Some(Empty) }
 
             // Types with intersections derived from the other term
 
@@ -279,6 +325,8 @@ final class IntersectionAlgorithm(
                       removals += bid
                     case (_, Some(Empty), _, _) => // b > a - remove a
                       removals += aid
+                    case _ =>
+                      ()
                   }
                   ()
               }
