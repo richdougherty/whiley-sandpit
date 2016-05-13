@@ -42,7 +42,7 @@ final class Graph private[Graph] (
         case None =>
           recursionMap(id) = NotRecursive
           apply(id) match {
-            case Node.Any | Node.Void | Node.Int => ()
+            case Node.Any | Node.Void | Node.Int | Node.Null => ()
             case Node.Negation(nodeChild) => findRecursion(nodeChild)
             case Node.Union(nodeChildren) => nodeChildren.foreach(findRecursion)
             case Node.Record(nodeFields) => nodeFields.foreach {
@@ -67,6 +67,7 @@ final class Graph private[Graph] (
         apply(id) match {
           case Node.Any => Tree.Any
           case Node.Void => Tree.Void
+          case Node.Null => Tree.Null
           case Node.Int => Tree.Int
           case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
           case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
@@ -105,6 +106,8 @@ object Graph {
           g += Node.Any
         case Tree.Void =>
           g += Node.Void
+        case Tree.Null =>
+          g += Node.Null
         case Tree.Int =>
           g += Node.Int
         case Tree.Negation(child) =>
@@ -147,6 +150,7 @@ object Graph {
   object Node {
     final case object Any extends Node
     final case object Void extends Node
+    final case object Null extends Node
     final case object Int extends Node
     final case class Negation(child: Id) extends Node
     final case class Union(children: List[Id]) extends Node

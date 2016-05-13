@@ -87,9 +87,8 @@ final class IntersectionAlgorithm(
       } {
         for ((id, node) <- g.nodes) {
           node match {
-            case Node.Any => possiblyContractive(id) = true
-            case Node.Void => possiblyContractive(id) = true
-            case Node.Int => possiblyContractive(id) = true
+            case Node.Any | Node.Void | Node.Null | Node.Int =>
+              possiblyContractive(id) = true
             case Node.Union(children) =>
               if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
             case Node.Negation(child) => possiblyContractive(id) = getContractive(child)
@@ -112,9 +111,8 @@ final class IntersectionAlgorithm(
       } {
         for ((id, node) <- g.nodes) {
           node match {
-            case Node.Any => ()
-            case Node.Void => ()
-            case Node.Int => ()
+            case Node.Any | Node.Void | Node.Null | Node.Int =>
+              ()
             case Node.Union(children) =>
               if (children.exists(g.nodes(_) == Node.Any)) {
                 // If there's an Any node, then replace Union with Any
@@ -187,7 +185,7 @@ final class IntersectionAlgorithm(
             case Node.Void =>
               conts.p = Some(Empty)
               conts.n = Some(NonEmpty)
-            case Node.Int =>
+            case Node.Int | Node.Null =>
               conts.p = Some(NonEmpty)
               conts.n = Some(NonEmpty)
             case Node.Union(children) =>

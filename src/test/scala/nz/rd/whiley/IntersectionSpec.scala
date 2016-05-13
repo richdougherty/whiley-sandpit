@@ -51,6 +51,16 @@ class IntersectionSpec extends FreeSpec with Matchers {
         ints.np should be(Some(Empty))
         ints.nn should be(Some(NonEmpty))
       }
+      "should handle the 'null' type" in {
+        val (tree, conts, ints) = runIntersection(Tree.Null)
+        tree should be(Tree.Null)
+        conts.p should be(Some(NonEmpty))
+        conts.n should be(Some(NonEmpty))
+        ints.pp should be(Some(NonEmpty))
+        ints.pn should be(Some(Empty))
+        ints.np should be(Some(Empty))
+        ints.nn should be(Some(NonEmpty))
+      }
       "should handle the '!any' type" in {
         val (tree, conts, ints) = runIntersection(Tree.Negation(Tree.Any))
         tree should be(Tree.Void)

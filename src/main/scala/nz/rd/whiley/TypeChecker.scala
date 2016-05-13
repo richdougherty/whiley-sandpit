@@ -17,6 +17,8 @@ object TypeChecker {
         (n, check.value) match {
           case (Node.Any, _) => Expr.Bool(true)
           case (Node.Void, _) => Expr.Bool(false)
+          case (Node.Null, Value.Null) => Expr.Bool(true)
+          case (Node.Null, _) => Expr.Bool(false)
           case (Node.Int, Value.Int(_)) => Expr.Bool(true)
           case (Node.Int, _) => Expr.Bool(false)
           case (Node.Negation(child), v) => Expr.Not(Check(child, v))

@@ -7,6 +7,9 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
 
   "TypeChecker" - {
 
+    "should typecheck null as null" in {
+      TypeChecker.check(Value.Null, Tree.Null) should be(true)
+    }
     "should typecheck 1 as int" in {
       TypeChecker.check(Value.Int(1), Tree.Int) should be(true)
     }

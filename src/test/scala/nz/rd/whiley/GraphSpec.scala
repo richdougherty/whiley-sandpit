@@ -17,6 +17,9 @@ class TypeSpec extends FreeSpec with Matchers {
     "should handle the 'void' type" in {
       roundTrip(Tree.Void)
     }
+    "should handle the 'null' type" in {
+      roundTrip(Tree.Null)
+    }
     "should handle the 'int' type" in {
       roundTrip(Tree.Int)
     }
