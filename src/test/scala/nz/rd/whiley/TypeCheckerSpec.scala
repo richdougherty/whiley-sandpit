@@ -16,9 +16,18 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
     "should typecheck 1 as void|int" in {
       TypeChecker.check(Value.Int(1), Tree.Union(List(Tree.Void, Tree.Int))) should be(true)
     }
-    // "should typecheck {x:1} as {x:int}" in {
-    //   TypeChecker.check(Value.Record(List(("x", Value.Int(1)))), Tree.Record(List(("x", Tree.Int)))) should be(true)
-    // }
+    "should typecheck 1 as µX.X|int" in {
+      TypeChecker.check(Value.Int(1), Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) should be(true)
+    }
+    "should typecheck {x:1} as {x:int}" in {
+      TypeChecker.check(Value.Record(List(("x", Value.Int(1)))), Tree.Record(List(("x", Tree.Int)))) should be(true)
+    }
+    "should typecheck {x:1} as !int" in {
+      TypeChecker.check(Value.Record(List(("x", Value.Int(1)))), Tree.Negation(Tree.Int)) should be(true)
+    }
+    "should not typecheck {x:1} as {x:!int}" in {
+      TypeChecker.check(Value.Record(List(("x", Value.Int(1)))), Tree.Record(List(("x", Tree.Negation(Tree.Int))))) should be(false)
+    }
 
   }
 

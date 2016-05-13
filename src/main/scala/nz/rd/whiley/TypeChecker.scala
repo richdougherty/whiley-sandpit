@@ -18,6 +18,7 @@ object TypeChecker {
           case (Node.Any, _) => Expr.Bool(true)
           case (Node.Void, _) => Expr.Bool(false)
           case (Node.Int, Value.Int(_)) => Expr.Bool(true)
+          case (Node.Int, _) => Expr.Bool(false)
           case (Node.Negation(child), v) => Expr.Not(Check(child, v))
           case (Node.Union(children), v) => Expr.Or(children.map((Check(_, v))))
           case (Node.Record(nodeFields), Value.Record(valueFields)) =>
@@ -26,9 +27,22 @@ object TypeChecker {
                 case ((_, fieldId), (_, fieldValue)) => Check(fieldId, fieldValue)
               })
             }
+          case (Node.Record(nodeFields), _) => Expr.Bool(false)
         }
       })
     }
+
+    def flattenChildren(cs: List[Check], exclude: Set[Check])(f: Expr => Option[List[Check]]): List[Check] = cs match {
+      case Nil => Nil
+      case c::tail if exclude.contains(c) => flattenChildren(tail, exclude)(f)
+      case c::tail =>
+        f(resolve(c)) match {
+          // Flatten in children of nested Or expressions
+          case None => c::flattenChildren(tail, exclude + c)(f)
+          case Some(grandchildren) => flattenChildren(tail ++ grandchildren, exclude + c)(f)
+        }
+    }
+
 
     val rootCheck = Check(g.root, v)
     resolve(rootCheck)
@@ -39,23 +53,28 @@ object TypeChecker {
       val checkList = checks.keys // Fix list of keys known at start of loop
       for (check <- checkList) {
         val newExpr = resolve(check) match {
-          // case Expr.Ref(`check`) => Expr.Bool(false) // Self-reference is false
-          // case Expr.Ref(other) => resolve(other)
           case b@Expr.Bool(_) => b // No work to do
-          case Expr.Or(childrenChecks) =>
-            // Evaluate children
-            val filteredExpr = childrenChecks.map(c => (c, resolve(c))).foldLeft[Expr](Expr.Or(Nil)) {
-              case (Expr.Or(_), (_, Expr.Bool(true))) => Expr.Bool(true) // Short-circuit
-              case (u@Expr.Or(_), (_, Expr.Bool(false))) => u // Ignore false
-              case (u@Expr.Or(_), (_, Expr.Ref(`check`))) => u // Ignore self-reference
-              case (Expr.Or(children), (_, Expr.Or(grandchildren))) => Expr.Or(children ++ grandchildren)
-              case (Expr.Or(children), (child, _)) => Expr.Or(child::children)
+          case Expr.Or(children) =>
+            val flattenedChildren: List[Check] = flattenChildren(children, Set(check)) {
+              case Expr.Or(cs) => Some(cs)
+              case _ => None
             }
-            // Rewrite pathological forms of union
-            filteredExpr match {
-              case Expr.Or(Nil) => Expr.Bool(false) // Empty union is false
-              case Expr.Or(child::Nil) => resolve(child) // Singleton union is same as child (we know child != `check`)
-              case e => e
+            flattenedChildren match {
+              case Nil => Expr.Bool(false) // Empty Or is false
+              case child::Nil => resolve(child) // Singleton And is same as child
+              case children if children.exists(resolve(_) == Expr.Bool(true)) => Expr.Bool(true)
+              case children => Expr.Or(children)
+            }
+          case Expr.And(children) =>
+            val flattenedChildren: List[Check] = flattenChildren(children, Set(check)) {
+              case Expr.And(cs) => Some(cs)
+              case _ => None
+            }
+            flattenedChildren match {
+              case Nil => Expr.Bool(true) // Empty And is false
+              case child::Nil => resolve(child) // Singleton And is same as child
+              case children if children.forall(resolve(_) == Expr.Bool(true)) => Expr.Bool(true)
+              case children => Expr.And(children)
             }
           case Expr.Not(`check`) => Expr.Bool(false) // Self-reference is false
           case Expr.Not(child) =>
@@ -79,7 +98,6 @@ object TypeChecker {
   private sealed trait Expr
   private object Expr {
     final case class Bool(value: Boolean) extends Expr
-    final case class Ref(check: Check) extends Expr
     final case class And(children: List[Check]) extends Expr
     final case class Or(children: List[Check]) extends Expr
     final case class Not(child: Check) extends Expr
