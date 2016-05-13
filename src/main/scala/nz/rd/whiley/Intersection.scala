@@ -25,17 +25,6 @@ final class IntersectionAlgorithm(
     contents.getOrElseUpdate(a, new Contents())
   }
 
-  /**
-   * Iterate on mutable state until a fixpoint is reached.
-   */
-  @tailrec
-  private def fixpoint(readState: => Any)(body: => Any): Unit = {
-    val before = readState
-    body
-    val after = readState
-    if (before != after) { fixpoint(readState)(body) }
-  }
-
   private def pairs[A](seq: Iterable[A]): Iterable[(A, A)] = {
     def headsAndTails(as: Iterable[A], acc: Vector[(A, Iterable[A])]): Vector[(A, Iterable[A])] = {
       if (as.isEmpty) acc else {
@@ -81,6 +70,8 @@ final class IntersectionAlgorithm(
   }
 
   def calculate(): Unit = {
+
+    import Utils.fixpoint
 
     fixpoint {
       (g.root, g.nodes.toMap)

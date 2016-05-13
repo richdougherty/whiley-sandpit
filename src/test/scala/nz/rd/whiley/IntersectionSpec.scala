@@ -10,14 +10,14 @@ class IntersectionSpec extends FreeSpec with Matchers {
     "of the root with itself" - {
 
       def runIntersection(t: Tree): (Tree, Contents, Intersections) = {
-        println(s"--- Running intersection on $t ---")
+        // println(s"--- Running intersection on $t ---")
         val alg = IntersectionAlgorithm.forGraph(Graph.fromTree(t))
         alg.calculate()
-        println(s"Alg: nodes: ${alg.g.root}, ${alg.g.nodes}, ${alg.contents}, ${alg.intersections}")
+        // println(s"Alg: nodes: ${alg.g.root}, ${alg.g.nodes}, ${alg.contents}, ${alg.intersections}")
         val tree = alg.g.toTree
         val rootConts = alg.getContents(alg.g.root)
         val rootInts = alg.getInts(alg.g.root, alg.g.root)
-        println(s"--- Done ---")
+        // println(s"--- Done ---")
         (tree, rootConts, rootInts)
       }
 
