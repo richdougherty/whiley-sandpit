@@ -31,6 +31,9 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
     "should not typecheck {x:1} as {x:!int}" in {
       TypeChecker.check(Value.Record(List(("x", Value.Int(1)))), Tree.Record(List(("x", Tree.Negation(Tree.Int))))) should be(false)
     }
+    "should not typecheck {x:1} as {y:int}" in {
+      TypeChecker.check(Value.Record(List(("x", Value.Int(1)))), Tree.Record(List(("y", Tree.Int)))) should be(false)
+    }
 
   }
 

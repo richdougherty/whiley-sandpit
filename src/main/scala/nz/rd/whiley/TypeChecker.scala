@@ -24,7 +24,7 @@ object TypeChecker {
           case (Node.Negation(child), v) => Expr.Not(Check(child, v))
           case (Node.Union(children), v) => Expr.Or(children.map((Check(_, v))))
           case (Node.Record(nodeFields), Value.Record(valueFields)) =>
-            if (nodeFields.length != valueFields.length) Expr.Bool(false) else {
+            if (nodeFields.map(_._1) != valueFields.map(_._1)) Expr.Bool(false) else {
               Expr.And((nodeFields zip valueFields).map {
                 case ((_, fieldId), (_, fieldValue)) => Check(fieldId, fieldValue)
               })
