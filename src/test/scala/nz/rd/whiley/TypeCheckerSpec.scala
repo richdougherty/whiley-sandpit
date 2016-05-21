@@ -16,6 +16,9 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
     "should not typecheck 1 as void" in {
       TypeChecker.check(Value.Int(1), Tree.Void) should be(false)
     }
+    "should not typecheck null as void" in {
+      TypeChecker.check(Value.Null, Tree.Void) should be(false)
+    }
     "should typecheck 1 as void|int" in {
       TypeChecker.check(Value.Int(1), Tree.Union(List(Tree.Void, Tree.Int))) should be(true)
     }
@@ -30,6 +33,16 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
     }
     "should typecheck int as !!int" in {
       TypeChecker.check(Value.Int(-1), Tree.Negation(Tree.Negation(Tree.Int))) should be(true)
+    }
+    "should not typecheck null as µX.!(X|)" in {
+      TypeChecker.check(Value.Null, Tree.Recursive("X", Tree.Negation(Tree.Union(List(Tree.Variable("X")))))) should be(false)
+    }
+    "should typecheck null as !(µX.!X)" in {
+      TypeChecker.check(Value.Null, Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) should be(true)
+    }
+    "should not typecheck null as µX.!(X|) (graph form)" in {
+      val g = Graph(0, Map(0 -> Graph.Node.Negation(1), 1 -> Graph.Node.Union(List(0))))
+      TypeChecker.check(Value.Null, g) should be(false)
     }
     "should not typecheck null as !!int" in {
       TypeChecker.check(Value.Null, Tree.Negation(Tree.Negation(Tree.Int))) should be(false)

@@ -77,6 +77,8 @@ final class IntersectionAlgorithm(
       (g.root, g.nodes.toMap)
     } {
 
+//      println("----- start calc iteration ----- " + g)
+
       // Find possibly-contractive types
 
       val possiblyContractive = mutable.Map.empty[Id, Boolean]
@@ -85,13 +87,20 @@ final class IntersectionAlgorithm(
       fixpoint {
         possiblyContractive.toMap
       } {
+
+//        println("----- start contractive iteration ----- " + possiblyContractive)
+
         for ((id, node) <- g.nodes) {
           node match {
             case Node.Any | Node.Void | Node.Null | Node.Int =>
               possiblyContractive(id) = true
+            case Node.Union(Nil) =>
+              possiblyContractive(id) = true
             case Node.Union(children) =>
               if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
             case Node.Negation(child) => possiblyContractive(id) = getContractive(child)
+            case Node.Record(Nil) =>
+              possiblyContractive(id) = true
             case Node.Record(fields) =>
               if (fields.map(_._2).forall(getContractive(_))) { possiblyContractive(id) = true }
           }
@@ -109,6 +118,9 @@ final class IntersectionAlgorithm(
       fixpoint {
         (g.root, g.nodes.toMap)
       } {
+
+//        println("----- start structural simplification iteration ----- " + g)
+
         for ((id, node) <- g.nodes) {
           node match {
             case Node.Any | Node.Void | Node.Null | Node.Int =>
@@ -173,6 +185,8 @@ final class IntersectionAlgorithm(
       fixpoint {
         ((g.root, g.nodes.toMap), contents.toMap.mapValues(v => (v.p, v.n)))
       } {
+//        println("----- start emptiness iteration ----- " + g + ", " + contents)
+
         for ((id, node) <- g.nodes) {
           val conts = getContents(id)
 
@@ -224,6 +238,9 @@ final class IntersectionAlgorithm(
       fixpoint {
         intersections.toMap.mapValues(ints => (ints.pp, ints.pn, ints.np, ints.nn))
       } {
+
+//        println("----- start intersection iteration ----- " + intersections)
+
         for (((a: Id, an: Node), (b: Id, bn: Node)) <- pairs(g.nodes)) {
           (a, b) match {
 
@@ -247,25 +264,33 @@ final class IntersectionAlgorithm(
               ints.nn = childInts.pn
             case Has.Union(ints, id, Node.Union(children), oid) =>
               val childrenInts = children.map(getInts(_, oid))
-              if (childrenInts.exists(_.pp == Some(NonEmpty))) { ints.pp = Some(NonEmpty) }
-              if (childrenInts.exists(_.pn == Some(NonEmpty))) { ints.pn = Some(NonEmpty) }
-              if (childrenInts.forall(_.np == Some(Empty))) { ints.np = Some(Empty) }
-              if (childrenInts.forall(_.nn == Some(Empty))) { ints.nn = Some(Empty) }
+              if (childrenInts.exists(_.pp == Some(NonEmpty))) {
+                ints.pp = Some(NonEmpty)
+              }
+              if (childrenInts.exists(_.pn == Some(NonEmpty))) {
+                ints.pn = Some(NonEmpty)
+              }
+              if (childrenInts.forall(_.np == Some(Empty))) {
+                ints.np = Some(Empty)
+              }
+              if (childrenInts.forall(_.nn == Some(Empty))) {
+                ints.nn = Some(Empty)
+              }
             case Has.Record(ints, id, Node.Record(fields), oid) =>
 
-              // TODO: TODO
+            // TODO: TODO
 
-              // val otherNode = g.nodes(oid)
-              // otherNode match {
-              //   case Node.Record(otherFields) if fields == otherFields =>
+            // val otherNode = g.nodes(oid)
+            // otherNode match {
+            //   case Node.Record(otherFields) if fields == otherFields =>
 
-              // }
+            // }
 
-              // val childrenInts = children.map(getInts(_, oid))
-              // if (childrenInts.exists(_.pp == Some(NonEmpty))) { ints.pp = Some(NonEmpty) }
-              // if (childrenInts.exists(_.pn == Some(NonEmpty))) { ints.pn = Some(NonEmpty) }
-              // if (childrenInts.forall(_.np == Some(Empty))) { ints.np = Some(Empty) }
-              // if (childrenInts.forall(_.nn == Some(Empty))) { ints.nn = Some(Empty) }
+            // val childrenInts = children.map(getInts(_, oid))
+            // if (childrenInts.exists(_.pp == Some(NonEmpty))) { ints.pp = Some(NonEmpty) }
+            // if (childrenInts.exists(_.pn == Some(NonEmpty))) { ints.pn = Some(NonEmpty) }
+            // if (childrenInts.forall(_.np == Some(Empty))) { ints.np = Some(Empty) }
+            // if (childrenInts.forall(_.nn == Some(Empty))) { ints.nn = Some(Empty) }
 
             // Types with intersections derived from the other term
 
@@ -282,6 +307,13 @@ final class IntersectionAlgorithm(
               ints.np = otherContents.p
               ints.nn = otherContents.n
 
+            case AnyNodes(ints, aid, anode, bid, bnode) =>
+              val ints = getInts(a, b)
+              ints.pp = Some(Empty)
+              // ints.pn = Some(Empty)
+              // ints.np = Some(Empty)
+              // ints.nn = Some(NonEmpty)
+
             case _ =>
               throw new MatchError(s"Failed to match $a (${g(a)}) and $b (${g(b)})")
           }
@@ -295,6 +327,9 @@ final class IntersectionAlgorithm(
       fixpoint {
         (g.root, g.nodes.toMap)
       } {
+
+//        println("----- start intersection simplifications ----- " + intersections)
+
         for ((id, node) <- g.nodes) {
           node match {
             case Node.Union(children) =>
@@ -327,6 +362,40 @@ final class IntersectionAlgorithm(
           }
         }
       }
+
+      // Prune nodes not reachable from the root
+
+//      println("----- start reachability pruning ----- " + g)
+
+      val reachableNodes = mutable.Set[Id]()
+
+      def markReachable(id: Id): Unit = {
+        val alreadyMarked = reachableNodes.contains(id)
+        if (!alreadyMarked) {
+          reachableNodes += id // Mark self
+          val node = g.nodes(id)
+          node match {
+            case Node.Union(children) =>
+              children.foreach(markReachable(_))
+            case Node.Negation(child) =>
+              markReachable(child)
+            case Node.Record(fields) =>
+              fields.map(_._2).foreach(markReachable(_))
+            case _ =>
+              () // Don't need to do anything for nodes without children
+          }
+        }
+      }
+      markReachable(g.root)
+
+      for (id <- g.nodes.keysIterator) {
+        if (!reachableNodes.contains(id)) {
+          g.nodes -= id
+        }
+      }
+
+//      println("----- end calc iteration ----- " + g)
+
     }
 
   }

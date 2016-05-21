@@ -5,7 +5,7 @@ import scala.collection.mutable
 final class Graph private[Graph] (
     var root: Graph.Id,
     val nodes: mutable.Map[Graph.Id, Graph.Node],
-    private var nextId: Graph.Id) {
+    var nextId: Graph.Id) {
 
   override def toString: String = s"Graph($root, $nodes)"
 
@@ -17,7 +17,18 @@ final class Graph private[Graph] (
     id
   }
   def apply(id: Id): Node = nodes(id)
-  def update(id: Id, n: Node): Unit = nodes.update(id, n)
+  def update(id: Id, n: Node): Unit = {
+    // !!!! DEBUGGING !!!!
+    // if (n == Node.Any) {
+    //   nodes.get(id).foreach {
+    //     case Node.Void | Node.Null | Node.Int =>
+    //       throw new Exception(s"Tried to replace node $id with Any in $this")
+    //     case _ => ()
+    //   }
+    // }
+    // !!!! END DEBUGGING !!!!
+    nodes.update(id, n)
+  }
   def +=(entry: (Id, Node)): Unit = {
     nodes += entry
   }
@@ -25,6 +36,14 @@ final class Graph private[Graph] (
     val id = freshId()
     this +=(id, n)
     id
+  }
+
+  def copy: Graph = {
+    val other = Graph.empty
+    other.root = root
+    other.nodes ++= nodes
+    other.nextId = nextId
+    other
   }
 
   def toTree: Tree = {
@@ -96,9 +115,19 @@ final class Graph private[Graph] (
 object Graph {
   type Id = Int
 
+  def empty: Graph = new Graph(0, mutable.Map.empty, 0)
+
+  def apply(root: Int, nodes: Map[Id, Node]): Graph = {
+    val g = empty
+    g.nodes ++= nodes
+    g.root = root
+    g.nextId = (nodes.keys.foldLeft(0) { case (maxSoFar, id) => Math.max(maxSoFar, id) }) + 1
+    g
+  }
+
   def fromTree(tree: Tree): Graph = {
 
-    val g = new Graph(0, mutable.Map.empty, 0)
+    val g = empty
 
     def convert(t: Tree, nameBindings: Map[String, Id]): Id = {
       t match {
@@ -127,6 +156,7 @@ object Graph {
             val newNode = node match {
               case Node.Any => Node.Any
               case Node.Void => Node.Void
+              case Node.Null => Node.Null
               case Node.Int => Node.Int
               case Node.Negation(c) => Node.Negation(replaceId(c))
               case Node.Union(cs) =>
