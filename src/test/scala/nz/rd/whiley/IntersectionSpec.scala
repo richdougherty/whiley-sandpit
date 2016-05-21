@@ -1,20 +1,27 @@
 package nz.rd.whiley
 
+import org.scalacheck._
 import org.scalatest._
+import org.scalatest.prop.PropertyChecks
 import scala.collection.mutable
 
-class IntersectionSpec extends FreeSpec with Matchers {
+class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
 
-  val exampleValues = Vector[Value](
-    Value.Null,
-    Value.Int(-1),
-    Value.Int(0),
-    Value.Int(1),
-    Value.Int(100),
-    Value.Null,
-    Value.Record(List()),
-    Value.Record(List(("x", Value.Int(1)))),
-    Value.Record(List(("x", Value.Null)))
+  val valueGen: Gen[Value] = Gen.frequency(
+    5 -> Gen.const(Value.Null),
+    5 -> Arbitrary.arbitrary[Int].map(Value.Int(_)),
+    2 -> Gen.const(Value.Record(Nil)),
+    1 -> Gen.lzy {
+      for {
+        x <- valueGen
+      } yield Value.Record(List("x" -> x))
+    },
+    1 -> Gen.lzy {
+      for {
+        x <- valueGen
+        y <- valueGen
+      } yield Value.Record(List("x" -> x, "y" -> y))
+    }
   )
 
   "Intersections" - {
@@ -29,12 +36,10 @@ class IntersectionSpec extends FreeSpec with Matchers {
         val newTree = alg.g.toTree
         val rootConts = alg.getContents(alg.g.root)
         val rootInts = alg.getInts(alg.g.root, alg.g.root)
-        for (value <- exampleValues) {
+        forAll(valueGen) { value =>
           val origCheck = TypeChecker.check(value, tree)
           val newCheck = TypeChecker.check(value, newTree)
-          withClue(s"Checking $value: ") {
-            origCheck should be(newCheck)
-          }
+          origCheck should be(newCheck)
         }
         // println(s"--- Done ---")
         (newTree, rootConts, rootInts)
