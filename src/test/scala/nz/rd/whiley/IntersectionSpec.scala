@@ -5,20 +5,39 @@ import scala.collection.mutable
 
 class IntersectionSpec extends FreeSpec with Matchers {
 
+  val exampleValues = Vector[Value](
+    Value.Null,
+    Value.Int(-1),
+    Value.Int(0),
+    Value.Int(1),
+    Value.Int(100),
+    Value.Null,
+    Value.Record(List()),
+    Value.Record(List(("x", Value.Int(1)))),
+    Value.Record(List(("x", Value.Null)))
+  )
+
   "Intersections" - {
 
     "of the root with itself" - {
 
-      def runIntersection(t: Tree): (Tree, Contents, Intersections) = {
+      def runIntersection(tree: Tree): (Tree, Contents, Intersections) = {
         // println(s"--- Running intersection on $t ---")
-        val alg = IntersectionAlgorithm.forGraph(Graph.fromTree(t))
+        val alg = IntersectionAlgorithm.forGraph(Graph.fromTree(tree))
         alg.calculate()
         // println(s"Alg: nodes: ${alg.g.root}, ${alg.g.nodes}, ${alg.contents}, ${alg.intersections}")
-        val tree = alg.g.toTree
+        val newTree = alg.g.toTree
         val rootConts = alg.getContents(alg.g.root)
         val rootInts = alg.getInts(alg.g.root, alg.g.root)
+        for (value <- exampleValues) {
+          val origCheck = TypeChecker.check(value, tree)
+          val newCheck = TypeChecker.check(value, newTree)
+          withClue(s"Checking $value: ") {
+            origCheck should be(newCheck)
+          }
+        }
         // println(s"--- Done ---")
-        (tree, rootConts, rootInts)
+        (newTree, rootConts, rootInts)
       }
 
       "should handle the 'any' type" in {

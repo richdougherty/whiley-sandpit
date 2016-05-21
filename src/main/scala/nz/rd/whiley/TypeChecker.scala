@@ -11,6 +11,9 @@ object TypeChecker {
 
     val checks = mutable.Map.empty[Check, Expr]
 
+    // Get an Expr for the given Check. When this function is first called
+    // an Expr will be created automatically and added to the checks map.
+    // On subsequent calls the Expr value in the map will be loaded.
     def resolve(check: Check): Expr = {
       checks.getOrElseUpdate(check, {
         val n: Node = g.nodes(check.id)
@@ -79,10 +82,11 @@ object TypeChecker {
               case children => Expr.And(children)
             }
           case Expr.Not(`check`) => Expr.Bool(false) // Self-reference is false
-          case Expr.Not(child) =>
+          case n@Expr.Not(child) =>
             resolve(child) match {
+              // case Expr.Not(grandchild) => resolve(grandchild)
               case Expr.Bool(b) => Expr.Bool(!b)
-              case other => other
+              case _ => n // Leave unchanged
             }
         }
         checks(check) = newExpr
