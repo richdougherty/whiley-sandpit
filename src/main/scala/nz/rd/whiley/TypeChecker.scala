@@ -105,7 +105,7 @@ object TypeChecker {
       val nodeCheck = Check(id, value)
       if (stack.contains(nodeCheck)) Expr2.Ref(nodeCheck) else {
         val node = g.nodes(id)
-        node match {
+        val e = node match {
           case Node.Any => Expr2.Bool(true)
           case Node.Void => Expr2.Bool(false)
           case Node.Null =>
@@ -132,35 +132,42 @@ object TypeChecker {
                 case e => e::Nil
               }
             }.filter(_ != Expr2.Ref(nodeCheck))
-            println(s"exprChildren: $exprChildren")
             exprChildren match {
-              case Nil => Expr2.Bool(true)
+              case Nil => Expr2.Bool(false)
               case e::Nil => e
               case es if es.exists(_ == Expr2.Bool(true)) => Expr2.Bool(true)
               case es if es.forall(_ == Expr2.Bool(false)) => Expr2.Bool(false)
               case es => Expr2.Or(es)
             }
           case Node.Record(fields) =>
-            val exprChildren: List[Expr2] = fields.map(_._2).flatMap { child: Id =>
-              nodeExpr(child, value, nodeCheck :: stack) match {
-                case Expr2.And(es) => es
-                case e => e::Nil
-              }
-            }
-            exprChildren match {
-              case Nil => Expr2.Bool(true)
-              case e::Nil => e
-              case es if es.forall(_ == Expr2.Bool(true)) => Expr2.Bool(true)
-              case es if es.exists(_ == Expr2.Bool(false)) => Expr2.Bool(false)
-              case es if es.exists(_ == Expr2.Ref(nodeCheck)) => Expr2.Bool(false)
-              case es => Expr2.And(es)
+            value match {
+              case Value.Record(valueFields) =>
+                if (fields.map(_._1) != valueFields.map(_._1)) Expr2.Bool(false) else {
+                  val exprChildren = (fields zip valueFields).flatMap {
+                    case ((_, fieldId), (_, fieldValue)) =>
+                      nodeExpr(fieldId, fieldValue, nodeCheck :: stack) match {
+                        case Expr2.And(es) => es
+                        case e => e :: Nil
+                      }
+                  }
+                  exprChildren match {
+                    case Nil => Expr2.Bool(false)
+                    case e :: Nil => e
+                    case es if es.forall(_ == Expr2.Bool(true)) => Expr2.Bool(true)
+                    case es if es.exists(_ == Expr2.Bool(false)) => Expr2.Bool(false)
+                    case es if es.exists(_ == Expr2.Ref(nodeCheck)) => Expr2.Bool(false)
+                    case es => Expr2.And(es)
+                  }
+                }
+              case _ => Expr2.Bool(false)
             }
         }
+//        println(nodeCheck + " -> " + e)
+        e
       }
     }
 
     val rootExpr: Expr2 = nodeExpr(g.root, v, Nil)
-    println(s"rootExpr: $rootExpr")
     rootExpr match {
       case Expr2.Bool(b) => b
       case _ => false
