@@ -25,6 +25,54 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
     }
   )
 
+
+  def genSizes(remaining: Int): Gen[List[Int]] = {
+    if (remaining <= 0) Gen.const(Nil) else {
+      for {
+        nodeSize <- Gen.choose(1, remaining)
+        followingSizes <- genSizes(remaining - nodeSize)
+      } yield nodeSize :: followingSizes
+    }
+  }
+
+  val treeGen: Gen[Tree] = Gen.sized { sizeMinusOne =>
+
+    def genTree(remaining: Int, boundNamesCount: Int, lastConcreteBinding: Int): Gen[Tree] = Gen.lzy {
+      val freq = {
+        Seq[(Int, Gen[Tree])](
+          1 -> Tree.Any,
+          1 -> Tree.Void,
+          1 -> Tree.Null,
+          1 -> Tree.Int,
+          1 -> {
+            for {
+              sizes <- genSizes(remaining - 2)
+              children <- Gen.sequence[List[Tree], Tree](sizes.map(genTree(_, boundNamesCount, boundNamesCount)))
+            } yield Tree.Union(children)
+          }
+        )
+      } ++ {
+        if (lastConcreteBinding == 0) Seq.empty else {
+          Seq[(Int, Gen[Tree])](
+            1 -> Gen.choose(0, lastConcreteBinding - 1).map(n => Tree.Variable("X" + n))
+          )
+        }
+      } ++ {
+        if (remaining < 2) Seq.empty else {
+          Seq[(Int, Gen[Tree])](
+            1 -> genTree(remaining-1, boundNamesCount+1, lastConcreteBinding).map(Tree.Recursive("X"+boundNamesCount, _)),
+            1 -> genTree(remaining-1, boundNamesCount, boundNamesCount).map(Tree.Negation)
+          )
+        }
+      }
+
+      Gen.frequency[Tree](freq: _*)
+    }
+
+    genTree(sizeMinusOne+1, 0, 0)
+
+  }
+
   val graphGen: Gen[Graph] = Gen.sized { sizeMinusOne =>
 
     import Graph.Node
@@ -52,7 +100,7 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
     }
 
     for {
-      nodeSizes <- genNodeSizes(sizeMinusOne + 1)
+      nodeSizes <- genSizes(sizeMinusOne + 1)
       nodeCount: Int = nodeSizes.size - 1
       root <- Gen.choose(0, nodeCount)
       nodes <- Gen.sequence[List[Node],Node](nodeSizes.map(genNode(nodeCount, _)))
@@ -378,19 +426,36 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
 
     }
 
-    "original and simplified forms of generated types must match same values" in {
+    "original and simplified forms of generated types must match same values" - {
 
-      forAll(graphGen, valueGen) { (graph: Graph, value: Value) =>
-        val origGraphDebug: String = graph.toString
-        val origCheck: Boolean = TypeChecker.check(value, graph)
-        val alg = IntersectionAlgorithm.forGraph(graph)
-        alg.calculate()
-        val simplifiedGraphDebug: String = graph.toString
-        val newCheck: Boolean = TypeChecker.check(value, graph)
-        withClue(s"Original: $origGraphDebug, simplified: $simplifiedGraphDebug") {
-          newCheck should be(origCheck)
+      "for generated trees" in {
+        forAll(treeGen, valueGen) { (tree: Tree, value: Value) =>
+          val origCheck: Boolean = TypeChecker.check(value, tree)
+          val g = Graph.fromTree(tree)
+          val alg = IntersectionAlgorithm.forGraph(g)
+          alg.calculate()
+          val newTree = g.toTree
+          val newCheck: Boolean = TypeChecker.check(value, g)
+          withClue(s"Original: $tree, simplified: $newTree") {
+            newCheck should be(origCheck)
+          }
         }
       }
+
+      "for generated graphs" in {
+        forAll(graphGen, valueGen) { (graph: Graph, value: Value) =>
+          val origGraphDebug: String = graph.toString
+          val origCheck: Boolean = TypeChecker.check(value, graph)
+          val alg = IntersectionAlgorithm.forGraph(graph)
+          alg.calculate()
+          val simplifiedGraphDebug: String = graph.toString
+          val newCheck: Boolean = TypeChecker.check(value, graph)
+          withClue(s"Original: $origGraphDebug, simplified: $simplifiedGraphDebug") {
+            newCheck should be(origCheck)
+          }
+        }
+      }
+
     }
 
   }
