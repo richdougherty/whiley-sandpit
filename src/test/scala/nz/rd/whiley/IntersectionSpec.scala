@@ -3,7 +3,6 @@ package nz.rd.whiley
 import org.scalacheck._
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import scala.collection.mutable
 
 class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
 
@@ -27,24 +26,40 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
   )
 
   val graphGen: Gen[Graph] = Gen.sized { sizeMinusOne =>
+
     import Graph.Node
-    val size = sizeMinusOne + 1 // Ensure minimum size is 1
-    val idGen: Gen[Graph.Id] = Gen.choose(0, size-1)
-    val nodeGen: Gen[Node] = Gen.frequency(
-      1 -> Node.Any,
-      1 -> Node.Void,
-      1 -> Node.Null,
-      1 -> Node.Int,
-      1 -> idGen.map(Node.Negation(_)),
-      1 -> Gen.listOf(idGen).map(Node.Union(_))
-    )
+
+    def genNodeSizes(remaining: Int): Gen[List[Int]] = {
+      if (remaining <= 0) Gen.const(Nil) else {
+        for {
+          nodeSize <- Gen.choose(1, remaining)
+          followingSizes <- genNodeSizes(remaining - nodeSize)
+        } yield nodeSize :: followingSizes
+      }
+    }
+
+    def genNode(nodeCount: Int, nodeSize: Int): Gen[Node] = {
+      require(nodeSize >= 1)
+      val idGen: Gen[Graph.Id] = Gen.choose(0, nodeCount-1)
+      Gen.frequency(
+        1 -> Node.Any,
+        1 -> Node.Void,
+        1 -> Node.Null,
+        1 -> Node.Int,
+        1 -> idGen.map(Node.Negation(_)), // Actually size 2, not 1, but doesn't increase complexity
+        1 -> Gen.listOfN(nodeSize - 1, idGen).map(Node.Union(_))
+      )
+    }
+
     for {
-      root <- idGen
-      nodes <- Gen.listOfN(size, nodeGen)
+      nodeSizes <- genNodeSizes(sizeMinusOne + 1)
+      nodeCount: Int = nodeSizes.size - 1
+      root <- Gen.choose(0, nodeCount)
+      nodes <- Gen.sequence[List[Node],Node](nodeSizes.map(genNode(nodeCount, _)))
     } yield {
       val g = Graph.empty
       g.root = root
-      for ((node, id) <- nodes.zipWithIndex) { g += (id -> node)}
+      for (n <- nodes) { g += n }
       g
     }
   }
@@ -52,7 +67,7 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
   "Intersections" - {
 
     "simplify graph properly" - {
-      "example 1" in {
+      "for void variant #1" in {
         val g = Graph(2, Map(
           0 -> Node.Union(List(8, 1)),
           1 -> Node.Null,
@@ -69,7 +84,7 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         alg.calculate()
         g.toTree should be(Tree.Void)
       }
-      "example 2" in {
+      "for void variant #2" in {
         val g = Graph(15, Map(
           0 -> Node.Union(List(8, 6, 2, 1, 20, 6, 13, 18, 21, 18, 8)),
           1 -> Node.Negation(18),
@@ -100,7 +115,7 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         alg.calculate()
         g.toTree should be(Tree.Void)
       }
-      "example 3" in {
+      "for !(|) variant #1" in {
         val g = Graph(0, Map(
           0 -> Node.Negation(1),
           1 -> Node.Union(List())
@@ -108,6 +123,58 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         val alg = IntersectionAlgorithm.forGraph(g)
         alg.calculate()
         g.toTree should be(Tree.Any)
+      }
+      "for !(µX.!X) variant #1" in {
+        val g = Graph(0, Map(
+          0 -> Node.Negation(1),
+          1 -> Node.Negation(1)
+        ))
+        val alg = IntersectionAlgorithm.forGraph(g)
+        alg.calculate()
+        g.toTree should be(Tree.Any)
+      }
+      "for !(|(µX.!X)) variant #1" in {
+        val g = Graph(0, Map(
+          0 -> Node.Negation(1),
+          1 -> Node.Union(List(2)),
+          2 -> Node.Negation(2)
+        ))
+        val alg = IntersectionAlgorithm.forGraph(g)
+        alg.calculate()
+        g.toTree should be(Tree.Any)
+      }
+      "for !null variant #1" in {
+        val g = Graph(0, Map(
+          0 -> Node.Negation(1),
+          1 -> Node.Null
+        ))
+        val alg = IntersectionAlgorithm.forGraph(g)
+        alg.calculate()
+        g.toTree should be(Tree.Negation(Tree.Null))
+      }
+      "for !null variant #2" in {
+        val g = Graph(16, Map(
+          0 -> Node.Negation(10),
+          1 -> Node.Union(List(11, 7, 4, 9, 2, 11, 1)),
+          2 -> Node.Int,
+          3 -> Node.Int,
+          4 -> Node.Void,
+          5 -> Node.Negation(11),
+          6 -> Node.Union(List(1, 9, 0, 16, 9, 5)),
+          7 -> Node.Void,
+          8 -> Node.Union(List(9, 15, 11, 13, 14, 7, 9, 6, 2, 14, 9, 16, 11, 10)),
+          9 -> Node.Union(List(6, 13, 6, 9, 11, 13, 11, 5, 16, 2)),
+          10 -> Node.Null,
+          11 -> Node.Negation(8),
+          12 -> Node.Any,
+          13 -> Node.Void,
+          14 -> Node.Int,
+          15 -> Node.Void,
+          16 -> Node.Negation(10)
+        ))
+        val alg = IntersectionAlgorithm.forGraph(g)
+        alg.calculate()
+        g.toTree should be(Tree.Negation(Tree.Null))
       }
     }
 
@@ -192,6 +259,16 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
       "should handle the '!int' type" in {
         val (tree, conts, ints) = runIntersection(Tree.Negation(Tree.Int))
         tree should be(Tree.Negation(Tree.Int))
+        conts.p should be(Some(NonEmpty))
+        conts.n should be(Some(NonEmpty))
+        ints.pp should be(Some(NonEmpty))
+        ints.pn should be(Some(Empty))
+        ints.np should be(Some(Empty))
+        ints.nn should be(Some(NonEmpty))
+      }
+      "should handle the '!null' type" in {
+        val (tree, conts, ints) = runIntersection(Tree.Negation(Tree.Null))
+        tree should be(Tree.Negation(Tree.Null))
         conts.p should be(Some(NonEmpty))
         conts.n should be(Some(NonEmpty))
         ints.pp should be(Some(NonEmpty))
@@ -302,22 +379,23 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
     }
 
     "original and simplified forms of generated types must match same values" in {
-      forAll(graphGen) { graph =>
-        val origGraph = graph.copy
+
+      forAll(graphGen, valueGen) { (graph: Graph, value: Value) =>
+        val origGraphDebug: String = graph.toString
+        val origCheck: Boolean = TypeChecker.check(value, graph)
         val alg = IntersectionAlgorithm.forGraph(graph)
         alg.calculate()
-        // withClue(s"Original: $origGraph, simplified: $graph") {
-        forAll(valueGen) { value =>
-          val origCheck = TypeChecker.check(value, origGraph)
-          val newCheck = TypeChecker.check(value, graph)
-          withClue(s"Original: $origGraph, simplified: $graph") {
-            newCheck should be(origCheck)
-          }
+        val simplifiedGraphDebug: String = graph.toString
+        val newCheck: Boolean = TypeChecker.check(value, graph)
+        withClue(s"Original: $origGraphDebug, simplified: $simplifiedGraphDebug") {
+          newCheck should be(origCheck)
         }
-        // }
       }
     }
 
   }
+
+  implicit override val generatorDrivenConfig =
+    PropertyCheckConfig(minSuccessful = 1000)
 
 }

@@ -367,32 +367,7 @@ final class IntersectionAlgorithm(
 
 //      println("----- start reachability pruning ----- " + g)
 
-      val reachableNodes = mutable.Set[Id]()
-
-      def markReachable(id: Id): Unit = {
-        val alreadyMarked = reachableNodes.contains(id)
-        if (!alreadyMarked) {
-          reachableNodes += id // Mark self
-          val node = g.nodes(id)
-          node match {
-            case Node.Union(children) =>
-              children.foreach(markReachable(_))
-            case Node.Negation(child) =>
-              markReachable(child)
-            case Node.Record(fields) =>
-              fields.map(_._2).foreach(markReachable(_))
-            case _ =>
-              () // Don't need to do anything for nodes without children
-          }
-        }
-      }
-      markReachable(g.root)
-
-      for (id <- g.nodes.keysIterator) {
-        if (!reachableNodes.contains(id)) {
-          g.nodes -= id
-        }
-      }
+      g.prune()
 
 //      println("----- end calc iteration ----- " + g)
 

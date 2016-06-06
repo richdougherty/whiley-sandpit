@@ -34,6 +34,9 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
     "should typecheck int as !!int" in {
       TypeChecker.check(Value.Int(-1), Tree.Negation(Tree.Negation(Tree.Int))) should be(true)
     }
+    "should not typecheck null as !null" in {
+      TypeChecker.check(Value.Null, Tree.Negation(Tree.Null)) should be(false)
+    }
     "should not typecheck null as µX.!(X|)" in {
       TypeChecker.check(Value.Null, Tree.Recursive("X", Tree.Negation(Tree.Union(List(Tree.Variable("X")))))) should be(false)
     }
