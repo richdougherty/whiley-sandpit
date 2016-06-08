@@ -179,7 +179,7 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         ))
         val alg = IntersectionAlgorithm.forGraph(g)
         alg.calculate()
-        g.toTree should be(Tree.Any)
+        g.toTree should be(Tree.Void)
       }
       "for !(|(µX.!X)) variant #1" in {
         val g = Graph(0, Map(
@@ -189,7 +189,7 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         ))
         val alg = IntersectionAlgorithm.forGraph(g)
         alg.calculate()
-        g.toTree should be(Tree.Any)
+        g.toTree should be(Tree.Void)
       }
       "for !null variant #1" in {
         val g = Graph(0, Map(

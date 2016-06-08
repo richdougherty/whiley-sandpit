@@ -41,7 +41,7 @@ class TypeCheckerSpec extends FreeSpec with Matchers {
       TypeChecker.check(Value.Null, Tree.Recursive("X", Tree.Negation(Tree.Union(List(Tree.Variable("X")))))) should be(false)
     }
     "should typecheck null as !(µX.!X)" in {
-      TypeChecker.check(Value.Null, Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) should be(true)
+      TypeChecker.check(Value.Null, Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) should be(false)
     }
     "should not typecheck null as µX.!(X|) (graph form)" in {
       val g = Graph(0, Map(0 -> Graph.Node.Negation(1), 1 -> Graph.Node.Union(List(0))))
