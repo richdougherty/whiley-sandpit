@@ -414,6 +414,16 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         ints.np should be(Some(Empty))
         ints.nn should be(Some(NonEmpty))
       }
+      "should handle the '!µX.(int|X)' type" in {
+        val (tree, conts, ints) = runIntersection(Tree.Negation(Tree.Recursive("X", Tree.Union(List(Tree.Int, Tree.Variable("X"))))))
+        tree should be(Tree.Negation(Tree.Recursive("X0", Tree.Union(List(Tree.Int, Tree.Variable("X"))))))
+        conts.p should be(Some(NonEmpty))
+        conts.n should be(Some(NonEmpty))
+        ints.pp should be(Some(NonEmpty))
+        ints.pn should be(Some(Empty))
+        ints.np should be(Some(Empty))
+        ints.nn should be(Some(NonEmpty))
+      }
 
     }
 

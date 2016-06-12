@@ -101,95 +101,53 @@ object TypeChecker {
 
   def check2(v: Value, g: Graph): Boolean = {
 
-    def nodeExpr(id: Id, value: Value, stack: List[Check]): Expr2 = {
+    def eval(id: Id, value: Value, stack: List[Check]): Ternary = {
       val nodeCheck = Check(id, value)
-      if (stack.contains(nodeCheck)) Expr2.Ref(nodeCheck) else {
+      if (stack.contains(nodeCheck)) TUnknown else {
         val node = g.nodes(id)
-        val e1 = node match {
-          case Node.Any => Expr2.Tern(TTrue)
-          case Node.Void => Expr2.Tern(TFalse)
+        def evalChild(child: Id, value: Value): Ternary = eval(child, value, nodeCheck::stack)
+        node match {
+          case Node.Any => TTrue
+          case Node.Void => TFalse
           case Node.Null =>
             value match {
-              case Value.Null => Expr2.Tern(TTrue)
-              case _ => Expr2.Tern(TFalse)
+              case Value.Null => TTrue
+              case _ => TFalse
             }
           case Node.Int =>
             value match {
-              case Value.Int(_) => Expr2.Tern(TTrue)
-              case _ => Expr2.Tern(TFalse)
+              case Value.Int(_) => TTrue
+              case _ => TFalse
             }
           case Node.Negation(child) =>
-            Expr2.Not(nodeExpr(child, value, nodeCheck :: stack))
-//              case Expr2.Ref(`nodeCheck`) => Expr2.Bool(false)
-//              case Expr2.Bool(b) => Expr2.Bool(!b)
-//              case Expr2.Not(e) => e
-//              case e => e
-//            }
+            !evalChild(child, value)
           case Node.Union(children) =>
-            Expr2.Or(children.map(nodeExpr(_, value, nodeCheck :: stack)))
-//            val exprChildren: List[Expr2] = children.flatMap { child: Id =>
-//              nodeExpr(child, value, nodeCheck :: stack) match {
-//                case Expr2.Or(es) => es
-//                case e => e::Nil
-//              }
-//            }.filter(_ != Expr2.Ref(nodeCheck))
-//            exprChildren match {
-//              case Nil => Expr2.Bool(false)
-//              case e::Nil => e
-//              case es if es.exists(_ == Expr2.Bool(true)) => Expr2.Bool(true)
-//              case es if es.forall(_ == Expr2.Bool(false)) => Expr2.Bool(false)
-//              case es => Expr2.Or(es)
-//            }
+            children.foldLeft[Ternary](TFalse) {
+              case (acc, child) => acc | evalChild(child, value)
+            }
           case Node.Record(fields) =>
             value match {
               case Value.Record(valueFields) =>
-                if (fields.map(_._1) != valueFields.map(_._1)) Expr2.Tern(TFalse) else {
-                  Expr2.And((fields zip valueFields).map {
-                    case ((_, fieldId), (_, fieldValue)) =>
-                      nodeExpr(fieldId, fieldValue, nodeCheck :: stack)
-                  })
-//                  exprChildren match {
-//                    case Nil => Expr2.Bool(false)
-//                    case e :: Nil => e
-//                    case es if es.forall(_ == Expr2.Bool(true)) => Expr2.Bool(true)
-//                    case es if es.exists(_ == Expr2.Bool(false)) => Expr2.Bool(false)
-//                    case es if es.exists(_ == Expr2.Ref(nodeCheck)) => Expr2.Bool(false)
-//                    case es => Expr2.And(es)
-//                  }
+                val fieldNamesEqual: Boolean = fields.map(_._1) == valueFields.map(_._1)
+                if (fieldNamesEqual) {
+                  val fieldsAndValues: Seq[(Id, Value)] = (fields zip valueFields).map {
+                    case ((_, fieldId), (_, fieldValue)) => (fieldId, fieldValue)
+                  }
+                  fieldsAndValues.foldLeft[Ternary](TTrue) {
+                    case (acc, (fieldId, fieldValue)) => acc & evalChild(fieldId, fieldValue)
+                  }
+                } else {
+                  // Field names not equal
+                  TFalse
                 }
-              case _ => Expr2.Tern(TFalse)
+              case _ => TFalse
             }
         }
-
-        // Mark any recursive references as unknown
-        def replace(e: Expr2): Expr2 = e match {
-          case Expr2.Ref(`nodeCheck`) => Expr2.Tern(TUnknown)
-          case Expr2.Not(child) => Expr2.Not(replace(child))
-          case Expr2.And(children) => Expr2.And(children.map(replace))
-          case Expr2.Or(children) => Expr2.Or(children.map(replace))
-          case e => e
-        }
-        val e2: Expr2 = replace(e1)
-
-        e2
       }
     }
 
-    def eval(e: Expr2): Ternary = e match {
-      case Expr2.Tern(t) => t
-      case Expr2.Not(child) => !eval(child)
-      case Expr2.And(children) => children.foldLeft[Ternary](TTrue) {
-        case (acc, child) => acc & eval(child)
-      }
-      case Expr2.Or(children) => children.foldLeft[Ternary](TFalse) {
-        case (acc, child) => acc | eval(child)
-      }
-      case Expr2.Ref(_) => throw new IllegalStateException("All references should be replaced")
-    }
-
-    val rootExpr: Expr2 = nodeExpr(g.root, v, Nil)
-    val rootValue: Ternary = eval(rootExpr)
-    rootValue.isTrue
+    val rootCheck: Ternary = eval(g.root, v, Nil)
+    rootCheck.isTrue // Fails if TFalse or TUnknown
   }
 
   private final case class Check(id: Id, value: Value)
