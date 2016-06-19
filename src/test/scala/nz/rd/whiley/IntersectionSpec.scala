@@ -8,23 +8,21 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
 
   import Graph.{Id, Node}
 
-  val valueGen: Gen[Value] = Gen.frequency(
-    5 -> Gen.const(Value.Null),
-    5 -> Arbitrary.arbitrary[Int].map(Value.Int(_)),
-    2 -> Gen.const(Value.Record(Nil)),
-    1 -> Gen.lzy {
-      for {
-        x <- valueGen
-      } yield Value.Record(List("x" -> x))
-    },
-    1 -> Gen.lzy {
-      for {
-        x <- valueGen
-        y <- valueGen
-      } yield Value.Record(List("x" -> x, "y" -> y))
+  val valueGen: Gen[Value] = Gen.sized { size =>
+    def genValue(remaining: Int): Gen[Value] = Gen.lzy {
+      Gen.frequency(
+        1 -> Gen.const(Value.Null),
+        1 -> Arbitrary.arbitrary[Int].map(Value.Int(_)),
+        1 -> {
+          for {
+            sizes <- genSizes(remaining - 1)
+            children <- Gen.sequence[List[Value], Value](sizes.map(genValue))
+          } yield Value.Product(children)
+        }
+      )
     }
-  )
-
+    genValue(size)
+  }
 
   def genSizes(remaining: Int): Gen[List[Int]] = {
     if (remaining <= 0) Gen.const(Nil) else {
@@ -49,6 +47,12 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
               sizes <- genSizes(remaining - 2)
               children <- Gen.sequence[List[Tree], Tree](sizes.map(genTree(_, boundNamesCount, boundNamesCount)))
             } yield Tree.Union(children)
+          },
+          1 -> {
+            for {
+              sizes <- genSizes(remaining - 2)
+              children <- Gen.sequence[List[Tree], Tree](sizes.map(genTree(_, boundNamesCount, boundNamesCount)))
+            } yield Tree.Product(children)
           }
         )
       } ++ {
@@ -404,9 +408,9 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         ints.np should be(Some(Empty))
         ints.nn should be(Some(NonEmpty))
       }
-      "should handle the '{x: int}' type" in {
-        val (tree, conts, ints) = runIntersection(Tree.Record(List(("x", Tree.Int))))
-        tree should be(Tree.Record(List(("x", Tree.Int))))
+      "should handle the '<int>' type" in {
+        val (tree, conts, ints) = runIntersection(Tree.Product(List(Tree.Int)))
+        tree should be(Tree.Product(List(Tree.Int)))
         conts.p should be(Some(NonEmpty))
         conts.n should be(Some(NonEmpty))
         ints.pp should be(Some(NonEmpty))

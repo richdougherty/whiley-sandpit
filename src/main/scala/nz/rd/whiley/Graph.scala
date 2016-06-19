@@ -64,9 +64,7 @@ final class Graph private[Graph] (
             case Node.Any | Node.Void | Node.Int | Node.Null => ()
             case Node.Negation(nodeChild) => findRecursion(nodeChild)
             case Node.Union(nodeChildren) => nodeChildren.foreach(findRecursion)
-            case Node.Record(nodeFields) => nodeFields.foreach {
-              case (_, fieldNode) => findRecursion(fieldNode)
-            }
+            case Node.Product(nodeChildren) => nodeChildren.foreach(findRecursion)
           }
         case Some(NotRecursive) =>
           val name = "X"+recursiveNameCount
@@ -90,9 +88,7 @@ final class Graph private[Graph] (
           case Node.Int => Tree.Int
           case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
           case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
-          case Node.Record(nodeFields) => Tree.Record(nodeFields.map {
-            case (name, fieldNode) => (name, convert(fieldNode))
-          })
+          case Node.Product(nodeChildren) => Tree.Product(nodeChildren.map(convert))
         }
       }
 
@@ -124,8 +120,8 @@ final class Graph private[Graph] (
             children.foreach(markReachable(_))
           case Node.Negation(child) =>
             markReachable(child)
-          case Node.Record(fields) =>
-            fields.map(_._2).foreach(markReachable(_))
+          case Node.Product(children) =>
+            children.foreach(markReachable(_))
           case _ =>
             () // Don't need to do anything for nodes without children
         }
@@ -172,10 +168,8 @@ object Graph {
           g += Node.Negation(convert(child, nameBindings))
         case Tree.Union(children) =>
           g += Node.Union(children.map(convert(_, nameBindings)))
-        case Tree.Record(treeFields) =>
-          g += Node.Record(treeFields.map {
-            case (name, child) => (name, convert(child, nameBindings))
-          })
+        case Tree.Product(children) =>
+          g += Node.Product(children.map(convert(_, nameBindings)))
         case Tree.Recursive(name, body) =>
           val tempId = g.freshId()
           val bodyId = convert(body, nameBindings + (name -> tempId))
@@ -190,9 +184,7 @@ object Graph {
               case Node.Negation(c) => Node.Negation(replaceId(c))
               case Node.Union(cs) =>
                 Node.Union(cs.map(replaceId))
-              case Node.Record(fs) => Node.Record(fs.map {
-                case (name, fieldId) => (name, replaceId(fieldId))
-              })
+              case Node.Product(cs) => Node.Product(cs.map(replaceId))
             }
             g(id) = newNode
           }
@@ -213,6 +205,6 @@ object Graph {
     final case object Int extends Node
     final case class Negation(child: Id) extends Node
     final case class Union(children: List[Id]) extends Node
-    final case class Record(fields: List[(String,Id)]) extends Node
+    final case class Product(children: List[Id]) extends Node
   }
 }

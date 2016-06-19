@@ -57,7 +57,7 @@ final class IntersectionAlgorithm(
     object Void extends Has[Node.Void.type]
     object Union extends Has[Node.Union]
     object Negation extends Has[Node.Negation]
-    object Record extends Has[Node.Record]
+    object Product extends Has[Node.Product]
   }
 
   object AnyNodes {
@@ -99,10 +99,10 @@ final class IntersectionAlgorithm(
             case Node.Union(children) =>
               if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
             case Node.Negation(child) => possiblyContractive(id) = getContractive(child)
-            case Node.Record(Nil) =>
+            case Node.Product(Nil) =>
               possiblyContractive(id) = true
-            case Node.Record(fields) =>
-              if (fields.map(_._2).forall(getContractive(_))) { possiblyContractive(id) = true }
+            case Node.Product(children) =>
+              if (children.forall(getContractive(_))) { possiblyContractive(id) = true }
           }
         }
       }
@@ -170,8 +170,8 @@ final class IntersectionAlgorithm(
                 case _ =>
                   ()
               }
-            case Node.Record(fields) =>
-              if (fields.map(_._2).exists(g.nodes(_) == Node.Void)) {
+            case Node.Product(children) =>
+              if (children.exists(g.nodes(_) == Node.Void)) {
                 // If there's a Void node, then replace Record with Void
                 g.nodes(id) = Node.Void
               }
@@ -210,11 +210,11 @@ final class IntersectionAlgorithm(
               val childContent = getContents(child)
               conts.p = childContent.n
               conts.n = childContent.p
-            case Node.Record(fields) =>
-              val fieldConts = fields.map(_._2).map(getContents(_))
-              if (fieldConts.forall(_.p == Some(NonEmpty))) {
+            case Node.Product(children) =>
+              val childConts = children.map(getContents(_))
+              if (childConts.forall(_.p == Some(NonEmpty))) {
                 conts.p = Some(NonEmpty)
-              } else if (fieldConts.exists(_.p == Some(Empty))) {
+              } else if (childConts.exists(_.p == Some(Empty))) {
                 conts.p = Some(Empty)
               }
               conts.n = Some(NonEmpty)
@@ -276,7 +276,7 @@ final class IntersectionAlgorithm(
               if (childrenInts.forall(_.nn == Some(Empty))) {
                 ints.nn = Some(Empty)
               }
-            case Has.Record(ints, id, Node.Record(fields), oid) =>
+            case Has.Product(ints, id, Node.Product(children), oid) =>
 
             // TODO: TODO
 
