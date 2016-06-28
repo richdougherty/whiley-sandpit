@@ -106,10 +106,10 @@ trait TypeChecker2[V] {
                   Fact.IsType(value, Type.Product(typeId)),
                   for {
                     childValues <- childValues(value) // FIXME: Check product type size?
-                    t <- Solver.foldLeft[Context, Graph.Id, Ternary](childTypeIds, TTrue) {
-                      case (acc, childTypeId) =>
+                    t <- Solver.foldLeft[Context, (Graph.Id, V), Ternary]((childTypeIds zip childValues), TTrue) {
+                      case (acc, (childTypeId, childValue)) =>
                         for {
-                          childCheck <- check0(graph, value, childTypeId)
+                          childCheck <- check0(graph, childValue, childTypeId)
                         } yield acc & childCheck
                     }
                   } yield t,
