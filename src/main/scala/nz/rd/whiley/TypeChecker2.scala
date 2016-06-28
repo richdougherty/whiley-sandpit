@@ -2,24 +2,17 @@ package nz.rd.whiley
 
 import nz.rd.whiley.solve.{Solutions, Solver}
 
-object TypeChecker2 {
+trait TypeChecker2[V] {
 
-//  def check(v: Value, t: Tree): Boolean = check(v, Graph.fromTree(t))
-//
-//  def check(v: Value, g: Graph): Boolean = {
-//
-//
-//  }
-
-  sealed trait Fact[V] {
-    def unary_!(): Fact[V] = Fact.Not(this)
+  sealed trait Fact {
+    def unary_!(): Fact = Fact.Not(this)
   }
   object Fact {
-    case class Not[V](negated: Fact[V]) extends Fact[V] {
-      require(!negated.isInstanceOf[Not[V]])
-      override def unary_!(): Fact[V] = negated
+    case class Not(negated: Fact) extends Fact {
+      require(!negated.isInstanceOf[Not])
+      override def unary_!(): Fact = negated
     }
-    case class IsType[V](value: V, k: Type) extends Fact[V]
+    case class IsType(value: V, k: Type) extends Fact
   }
 
   sealed trait Type
@@ -29,80 +22,80 @@ object TypeChecker2 {
     case class Product(typeId: Graph.Id) extends Type
   }
 
-  trait Heap[V] {
-    def assert(fact: Fact[V]): Solver[Heap[V], Unit]
-    def childValues(value: V): Solver[Heap[V], List[V]]
+  trait Heap {
+    def assert(fact: Fact): Solver[Heap, Unit]
+    def childValues(value: V): Solver[Heap, List[V]]
   }
 
-  def check[V](graph: Graph, value: V): Solver[Heap[V],Ternary] = {
+  def checkSolutions(graph: Graph, value: V): Solver[Heap,Ternary] = {
     check0(graph, value, graph.root).changeContext(Context(_, Set.empty), _.heap)
   }
 
-  private case class Context[V](heap: Heap[V], checks: Set[(V, Graph.Id)])
+  private case class Context(heap: Heap, checks: Set[(V, Graph.Id)])
 
-  private def enterCheckFrame[V](value: V, typeId: Graph.Id) = Solver[Context[V],Unit] { c: Context[V] =>
+  private def enterCheckFrame(value: V, typeId: Graph.Id) = Solver[Context,Unit] { c: Context =>
     assert(!c.checks.contains((value -> typeId)))
     val c1 = c.copy(checks = c.checks + (value -> typeId))
     Solutions.single(c1, ())
   }
-  private def inCheckFrame[V](value: V, typeId: Graph.Id): Solver[Context[V], Boolean] = {
+  private def inCheckFrame(value: V, typeId: Graph.Id): Solver[Context, Boolean] = {
     for {
-      c <- Solver.getContext[Context[V]]
+      c <- Solver.getContext[Context]
     } yield c.checks.contains(value -> typeId)
   }
-  private def leaveCheckFrame[V](value: V, typeId: Graph.Id) = Solver[Context[V],Unit] { c: Context[V] =>
+  private def leaveCheckFrame(value: V, typeId: Graph.Id) = Solver[Context,Unit] { c: Context =>
     assert(c.checks.contains((value -> typeId)))
     val c1 = c.copy(checks = c.checks - (value -> typeId))
     Solutions.single(c1, ())
   }
 
-  private def assertFact[V](fact: Fact[V]): Solver[Context[V],Unit] = {
+  private def assertFact(fact: Fact): Solver[Context,Unit] = {
     for {
-      initialContext <- Solver.getContext[Context[V]]
-      _ <- initialContext.heap.assert(fact).changeContext[Context[V]](_.heap, newHeap => initialContext.copy(heap = newHeap))
+      initialContext <- Solver.getContext[Context]
+      _ <- initialContext.heap.assert(fact).changeContext[Context](_.heap, newHeap => initialContext.copy(heap = newHeap))
     } yield ()
   }
-  private def childValues[V](value: V): Solver[Context[V],List[V]] = {
+  private def childValues(value: V): Solver[Context,List[V]] = {
     for {
-      initialContext <- Solver.getContext[Context[V]]
-      values <- initialContext.heap.childValues(value).changeContext[Context[V]](_.heap, newHeap => initialContext.copy(heap = newHeap))
+      initialContext <- Solver.getContext[Context]
+      values <- initialContext.heap.childValues(value).changeContext[Context](_.heap, newHeap => initialContext.copy(heap = newHeap))
     } yield values
   }
 
-  private def branch[V,A](
-      fact: Fact[V],
-      ifTrue: => Solver[Context[V],A],
-      ifFalse: => Solver[Context[V],A]): Solver[Context[V],A] = {
+  private def branch[A](
+      fact: Fact,
+      ifTrue: => Solver[Context,A],
+      ifFalse: => Solver[Context,A]): Solver[Context,A] = {
     assertFact(fact).flatMap(_ => ifTrue) ++ assertFact(!fact).flatMap(_ => ifFalse)
   }
 
-  private def check0[V](graph: Graph, value: V, typeId: Graph.Id): Solver[Context[V],Ternary] = {
+  private def check0(graph: Graph, value: V, typeId: Graph.Id): Solver[Context,Ternary] = {
     for {
       alreadyChecking <- inCheckFrame(value, typeId)
-      loopCheck <- if (alreadyChecking) Solver.const[Context[V],Ternary](TUnknown) else {
+      loopCheck <- if (alreadyChecking) Solver.const[Context,Ternary](TUnknown) else {
         for {
           _ <- enterCheckFrame(value, typeId)
           typeCheck <- {
             val typeNode = graph.nodes(typeId)
             typeNode match {
-              case Graph.Node.Any => Solver.const[Context[V],Ternary](TTrue)
-              case Graph.Node.Void => Solver.const[Context[V],Ternary](TFalse)
+              case Graph.Node.Any => Solver.const[Context,Ternary](TTrue)
+              case Graph.Node.Void => Solver.const[Context,Ternary](TFalse)
               case Graph.Node.Null => branch(
                 Fact.IsType(value, Type.Null),
-                Solver.const[Context[V],Ternary](TTrue),
-                Solver.const[Context[V],Ternary](TFalse)
+                Solver.const[Context,Ternary](TTrue),
+                Solver.const[Context,Ternary](TFalse)
               )
               case Graph.Node.Int => branch(
                 Fact.IsType(value, Type.Int),
-                Solver.const[Context[V],Ternary](TTrue),
-                Solver.const[Context[V],Ternary](TFalse)
+                Solver.const[Context,Ternary](TTrue),
+                Solver.const[Context,Ternary](TFalse)
               )
               case Graph.Node.Negation(negatedTypeId) =>
                 for {
                   t <- check0(graph, value, negatedTypeId)
                 } yield !t
               case Graph.Node.Union(childTypeIds) =>
-                Solver.foldLeft[Context[V], Graph.Id, Ternary](childTypeIds, TFalse) {
+                Solver.foldLeft[Context, Graph.Id, Ternary](childTypeIds, TFalse) {
                   case (acc, childTypeId) =>
                     for {
                       childCheck <- check0(graph, value, childTypeId)
@@ -113,14 +106,14 @@ object TypeChecker2 {
                   Fact.IsType(value, Type.Product(typeId)),
                   for {
                     childValues <- childValues(value) // FIXME: Check product type size?
-                    t <- Solver.foldLeft[Context[V], Graph.Id, Ternary](childTypeIds, TTrue) {
+                    t <- Solver.foldLeft[Context, Graph.Id, Ternary](childTypeIds, TTrue) {
                       case (acc, childTypeId) =>
                         for {
                           childCheck <- check0(graph, value, childTypeId)
                         } yield acc & childCheck
                     }
                   } yield t,
-                  Solver.const[Context[V],Ternary](TFalse)
+                  Solver.const[Context,Ternary](TFalse)
                 )
             }
           }
