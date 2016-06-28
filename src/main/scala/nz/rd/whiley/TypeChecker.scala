@@ -3,7 +3,7 @@ package nz.rd.whiley
 import nz.rd.whiley.Graph.{Id, Node}
 import nz.rd.whiley.solve.{Solutions, Solver}
 
-object TypeChecker extends TypeChecker2[Value] {
+object TypeChecker extends TypeChecker2[Value,Ternary] {
   
   def check(v: Value, t: Tree): Boolean = check(v, Graph.fromTree(t))
   def check(v: Value, g: Graph): Boolean = {
@@ -94,4 +94,11 @@ object TypeChecker extends TypeChecker2[Value] {
     final case class Or(children: List[Expr2]) extends Expr2
     final case class Not(child: Expr2) extends Expr2
   }
+
+  override protected def resultNegation(r: Ternary): Ternary = !r
+  override protected def resultDisjunction(r1: Ternary, r2: Ternary): Ternary = r1 | r2
+  override protected def resultConjunction(r1: Ternary, r2: Ternary): Ternary = r1 & r2
+  override protected val RFalse: Ternary = TFalse
+  override protected val RTrue: Ternary = TTrue
+  override protected val RUnknown: Ternary = TUnknown
 }

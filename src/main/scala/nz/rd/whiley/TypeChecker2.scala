@@ -2,7 +2,7 @@ package nz.rd.whiley
 
 import nz.rd.whiley.solve.{Solutions, Solver}
 
-trait TypeChecker2[V] {
+trait TypeChecker2[V,R] {
 
   sealed trait Fact {
     def unary_!(): Fact = Fact.Not(this)
@@ -22,12 +22,19 @@ trait TypeChecker2[V] {
     case class Product(typeId: Graph.Id) extends Type
   }
 
+  protected def resultNegation(r: R): R
+  protected def resultConjunction(r1: R, r2: R): R
+  protected def resultDisjunction(r1: R, r2: R): R
+  protected val RFalse: R
+  protected val RTrue: R
+  protected val RUnknown: R
+
   trait Heap {
     def assert(fact: Fact): Solver[Heap, Unit]
     def childValues(value: V): Solver[Heap, List[V]]
   }
 
-  def checkSolutions(graph: Graph, value: V): Solver[Heap,Ternary] = {
+  def checkSolutions(graph: Graph, value: V): Solver[Heap,R] = {
     check0(graph, value, graph.root).changeContext(Context(_, Set.empty), _.heap)
   }
 
@@ -69,51 +76,51 @@ trait TypeChecker2[V] {
     assertFact(fact).flatMap(_ => ifTrue) ++ assertFact(!fact).flatMap(_ => ifFalse)
   }
 
-  private def check0(graph: Graph, value: V, typeId: Graph.Id): Solver[Context,Ternary] = {
+  private def check0(graph: Graph, value: V, typeId: Graph.Id): Solver[Context,R] = {
     for {
       alreadyChecking <- inCheckFrame(value, typeId)
-      loopCheck <- if (alreadyChecking) Solver.const[Context,Ternary](TUnknown) else {
+      loopCheck <- if (alreadyChecking) Solver.const[Context,R](RUnknown) else {
         for {
           _ <- enterCheckFrame(value, typeId)
           typeCheck <- {
             val typeNode = graph.nodes(typeId)
             typeNode match {
-              case Graph.Node.Any => Solver.const[Context,Ternary](TTrue)
-              case Graph.Node.Void => Solver.const[Context,Ternary](TFalse)
+              case Graph.Node.Any => Solver.const[Context,R](RTrue)
+              case Graph.Node.Void => Solver.const[Context,R](RFalse)
               case Graph.Node.Null => branch(
                 Fact.IsType(value, Type.Null),
-                Solver.const[Context,Ternary](TTrue),
-                Solver.const[Context,Ternary](TFalse)
+                Solver.const[Context,R](RTrue),
+                Solver.const[Context,R](RFalse)
               )
               case Graph.Node.Int => branch(
                 Fact.IsType(value, Type.Int),
-                Solver.const[Context,Ternary](TTrue),
-                Solver.const[Context,Ternary](TFalse)
+                Solver.const[Context,R](RTrue),
+                Solver.const[Context,R](RFalse)
               )
               case Graph.Node.Negation(negatedTypeId) =>
                 for {
                   t <- check0(graph, value, negatedTypeId)
-                } yield !t
+                } yield resultNegation(t)
               case Graph.Node.Union(childTypeIds) =>
-                Solver.foldLeft[Context, Graph.Id, Ternary](childTypeIds, TFalse) {
+                Solver.foldLeft[Context, Graph.Id, R](childTypeIds, RFalse) {
                   case (acc, childTypeId) =>
                     for {
                       childCheck <- check0(graph, value, childTypeId)
-                    } yield acc | childCheck
+                    } yield resultDisjunction(acc, childCheck)
                 }
               case Graph.Node.Product(childTypeIds) =>
                 branch(
                   Fact.IsType(value, Type.Product(typeId)),
                   for {
                     childValues <- childValues(value) // FIXME: Check product type size?
-                    t <- Solver.foldLeft[Context, (Graph.Id, V), Ternary]((childTypeIds zip childValues), TTrue) {
+                    t <- Solver.foldLeft[Context, (Graph.Id, V), R]((childTypeIds zip childValues), RTrue) {
                       case (acc, (childTypeId, childValue)) =>
                         for {
                           childCheck <- check0(graph, childValue, childTypeId)
-                        } yield acc & childCheck
+                        } yield resultConjunction(acc, childCheck)
                     }
                   } yield t,
-                  Solver.const[Context,Ternary](TFalse)
+                  Solver.const[Context,R](RFalse)
                 )
             }
           }
