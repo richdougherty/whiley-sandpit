@@ -1,13 +1,41 @@
 package nz.rd.whiley
 
-import scala.annotation.tailrec
-import scala.collection.mutable
-import nz.rd.whiley.Graph.{ Id, Node }
+import nz.rd.whiley.Graph.{Id, Node}
+import nz.rd.whiley.TypeChecker2.Heap
+import nz.rd.whiley.solve.{Solutions, Solver}
 
 object TypeChecker {
   
   def check(v: Value, t: Tree): Boolean = check(v, Graph.fromTree(t))
   def check(v: Value, g: Graph): Boolean = {
+    val heap = new TypeChecker2.Heap[Value] {
+      override def assert(fact: TypeChecker2.Fact[Value]): Solver[Heap[Value], Unit] = new Solver[Heap[Value], Unit] {
+        override def solve(heap: Heap[Value]): Solutions[Heap[Value],Unit] = {
+          def checkFact(f: TypeChecker2.Fact[Value]): Boolean = {
+            f match {
+              case TypeChecker2.Fact.Not(negated) => !checkFact(negated)
+              case TypeChecker2.Fact.IsType(Value.Null, TypeChecker2.Type.Null) => true
+              case TypeChecker2.Fact.IsType(Value.Int(_), TypeChecker2.Type.Int) => true
+              case TypeChecker2.Fact.IsType(Value.Product(_), TypeChecker2.Type.Product(_)) => true
+              case _ => false
+            }
+          }
+          if (checkFact(fact)) Solutions.single(heap, ()) else Solutions.empty
+        }
+      }
+      override def childValues(value: Value): Solver[Heap[Value], List[Value]] = {
+        value match {
+          case Value.Product(values) => Solver.const[Heap[Value], List[Value]](values)
+          case _ => throw new IllegalArgumentException("Only products have child values: $value")
+        }
+      }
+    }
+    val solver = TypeChecker2.check[Value](g, v)
+    val solutions = solver.solve(heap)
+    assert(solutions.list.size == 1, s"Wrong number of solutions: $solutions")
+    solutions.list.head.value.isTrue
+  }
+  def checkX(v: Value, g: Graph): Boolean = {
 
     def eval(id: Id, value: Value, stack: List[Check]): Ternary = {
       val nodeCheck = Check(id, value)
