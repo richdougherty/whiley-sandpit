@@ -3,36 +3,38 @@ package nz.rd.whiley
 import nz.rd.whiley.Graph.{Id, Node}
 import nz.rd.whiley.solve.{Solutions, Solver}
 
-object TypeChecker extends TypeChecker2[Value,Ternary] {
-  
+object TypeChecker extends BaseTypeChecker {
+
+  override type V = Value
+  override type R = Ternary
+  override type X = Unit
+
+  override protected def initialExtraContext: X = ()
+
+  override protected def isNullKind(v: V): R = v match {
+    case Value.Null => TTrue
+    case _ => TFalse
+  }
+  override protected def isIntKind(v: V): R = v match {
+    case Value.Int(_) => TTrue
+    case _ => TFalse
+  }
+  override protected def isProductKind(size: Int, v: V): R = v match {
+    case Value.Product(vs) if vs.length == size => TTrue
+    case _ => TFalse
+  }
+  override protected def checkCompoundType(compoundValue: V, typeId: Graph.Id, typeNode: Graph.Node, checkChildren: List[V] => Solver[X,R]): Solver[X,R] = {
+    compoundValue match {
+      case Value.Product(vs) => checkChildren(vs)
+      case _ => throw new IllegalArgumentException(s"Called on non-compound value: $compoundValue")
+    }
+  }
+
   def check(v: Value, t: Tree): Boolean = check(v, Graph.fromTree(t))
   def check(v: Value, g: Graph): Boolean = {
-    val heap = new Heap {
-      override def assert(fact: Fact): Solver[Heap, Unit] = new Solver[Heap, Unit] {
-        override def solve(heap: Heap): Solutions[Heap,Unit] = {
-          def checkFact(f: Fact): Boolean = {
-            f match {
-              case Fact.Not(negated) => !checkFact(negated)
-              case Fact.IsType(Value.Null, Type.Null) => true
-              case Fact.IsType(Value.Int(_), Type.Int) => true
-              case Fact.IsType(Value.Product(_), Type.Product(_)) => true
-              case _ => false
-            }
-          }
-          if (checkFact(fact)) Solutions.single(heap, ()) else Solutions.empty
-        }
-      }
-      override def childValues(value: Value): Solver[Heap, List[Value]] = {
-        value match {
-          case Value.Product(values) => Solver.const[Heap, List[Value]](values)
-          case _ => throw new IllegalArgumentException("Only products have child values: $value")
-        }
-      }
-    }
-    val solver = checkSolutions(g, v)
-    val solutions = solver.solve(heap)
-    assert(solutions.list.size == 1, s"Wrong number of solutions: $solutions")
-    solutions.list.head.value.isTrue
+    val solutions = checkSolutions(g, v)
+    assert(solutions.size == 1, s"Wrong number of solutions: $solutions")
+    solutions.head.isTrue
   }
   def checkX(v: Value, g: Graph): Boolean = {
 
@@ -98,6 +100,9 @@ object TypeChecker extends TypeChecker2[Value,Ternary] {
   override protected def resultNegation(r: Ternary): Ternary = !r
   override protected def resultDisjunction(r1: Ternary, r2: Ternary): Ternary = r1 | r2
   override protected def resultConjunction(r1: Ternary, r2: Ternary): Ternary = r1 & r2
+  override protected def resultCondition[C](r: R, ifTrue: => Solver[C,R], ifFalse: => Solver[C,R]): Solver[C,R] = {
+    if (r.isTrue) ifTrue else ifFalse
+  }
   override protected val RFalse: Ternary = TFalse
   override protected val RTrue: Ternary = TTrue
   override protected val RUnknown: Ternary = TUnknown

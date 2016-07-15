@@ -27,9 +27,9 @@ trait Solver[C,+A] {
       ss1 ++ ss2
     }
   }
-  def changeContext[D](enter: D => C, exit: C => D): Solver[D,A] = new Solver[D,A] {
+  def changeContext[D](enter: D => C, exit: (D,C) => D): Solver[D,A] = new Solver[D,A] {
     override def solve(context: D): Solutions[D,A] = {
-      parent.solve(enter(context)).map(exit, identity[A])
+      parent.solve(enter(context)).map(exit(context, _), identity[A])
     }
   }
 //  def foreach(f: A => Unit): Solver[C,Unit] = new Solver[C,Unit] {
@@ -54,6 +54,14 @@ object Solver {
   }
   def getContext[C] = new Solver[C,C] {
     override def solve(context: C): Solutions[C,C] = Solutions.single(context, context)
+  }
+  def mapContext[C](f: C => C) = new Solver[C,C] {
+    override def solve(context: C): Solutions[C,C] = Solutions.single(f(context), context)
+  }
+  def wrapContext[C,D,A](wrap: C => D, unwrap: D => C)(wrapped: => Solver[D,A]): Solver[C,A] = new Solver[C,A] {
+    override def solve(context: C): Solutions[C,A] = {
+      wrapped.solve(wrap(context)).map(unwrap(_), identity[A])
+    }
   }
 
   def foldLeft[C,A,B](list: List[A], z: B)(op: (B, A) => Solver[C,B]): Solver[C,B] = {
