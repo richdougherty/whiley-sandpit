@@ -5,7 +5,7 @@ import nz.rd.whiley.solve.{Solution, Solutions, Solver}
 
 import scala.annotation.tailrec
 
-class AbsTypeChecker extends BaseTypeChecker {
+object StaticTypeChecker extends BaseTypeChecker {
 
   import DNF._
 
@@ -25,6 +25,7 @@ class AbsTypeChecker extends BaseTypeChecker {
     ifTrue.map(_ & r) ++ ifFalse.map(_ & !r)
   }
 
+  def check(t: Tree): List[Disj] = check(Graph.fromTree(t))
   def check(g: Graph): List[Disj] = {
     checkSolutions(g, RootVal)
   }

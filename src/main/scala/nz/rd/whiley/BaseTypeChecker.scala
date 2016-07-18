@@ -47,24 +47,6 @@ trait BaseTypeChecker {
     Solutions.single(c1, ())
   }
 
-//  private def assertFact(fact: Fact): Solver[Context,Unit] = {
-//    assertFact(fact).changeContext[Context](_.heap, (c, h) => c.copy(heap = h))
-//  }
-//  private def childValues(value: V): Solver[Context,List[V]] = {
-//    for {
-//      initialContext <- Solver.getContext[Context]
-//      values <- initialContext.heap.childValues(value).changeContext[Context](_.heap, newHeap => initialContext.copy(heap = newHeap))
-//    } yield values
-//  }
-
-//  private def branch(
-//      fact: Fact,
-//      ifTrue: => Solver[Context,R],
-//      ifFalse: => Solver[Context,R]): Solver[Context,R] = {
-//    val factResult: R = testFact(fact)
-//    ifTrue.map(resultConjunction(factResult, _)) ++ ifFalse.map(resultConjunction(resultNegation(factResult), _))
-//  }
-
   private def const(r: R): Solver[Context,R] = {
     Solver.const[Context,R](r)
   }

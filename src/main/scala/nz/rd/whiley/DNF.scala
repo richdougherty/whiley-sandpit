@@ -11,14 +11,16 @@ object DNF {
 //  }
 
   private var depth = 0
-  private def logCall[A](msg: String)(call: => A): A = {
+  private def log(msg: String): Unit = {
     for (_ <- 0 until depth) { print("  ") }
-    println(s"$msg ...")
+    println(msg)
+  }
+  private def logCall[A](msg: String)(call: => A): A = {
+    log(s"$msg ...")
     depth += 1
     val r = call
     depth -= 1
-    for (_ <- 0 until depth) { print("  ") }
-    println(s"$msg --> $r")
+    log(s"$msg --> $r")
     r
   }
 
@@ -27,24 +29,28 @@ object DNF {
 
     def max: Ternary = if (conjs.isEmpty) constant else TTrue
 
-    def |(ternary: Ternary): Disj = this | (Conj.Empty & ternary)
+    def |(ternary: Ternary): Disj = this | (Conj(ternary))
     def |(term: Term): Disj = this | (Conj.Empty & term)
     def |(conj: Conj): Disj = {
       logCall(s"$this | $conj") {
         if (constant == TTrue || conj.constant == TFalse) {
+          log(s"Ignoring $conj because this's constant is true or conj's constant is false")
           this
         } else if (conj.terms.isEmpty) {
-          new Disj(constant | conj.constant, Set.empty)
+          log(s"Ignoring $conj's because this's constant is true or conj's constant is false")
+          new Disj(constant | conj.constant, this.conjs)
         } else if (conjs.exists(c => c.constant == (c.constant | conj.constant) && c.terms.subsetOf(conj.terms))) {
+          log(s"Conj $conj is redundant with $this")
           this
         } else {
+          log(s"Adding new conj $conj")
           new Disj(constant, conjs + conj)
         }
       }
     }
     def |(that: Disj): Disj = {
       logCall(s"$this | $that") {
-        that.conjs.foldLeft(Disj(constant | that.constant)) { case (d, c) => d | c }
+        that.conjs.foldLeft(new Disj(constant | that.constant, conjs)) { case (d, c) => d | c }
       }
     }
 
@@ -71,7 +77,7 @@ object DNF {
       val start: Set[Ternary] = constant match {
         case TTrue => Set(TTrue)
         case TUnknown => Set(TTrue, TUnknown)
-        case TTrue => Set(TTrue, TUnknown, TFalse)
+        case TFalse => Set(TTrue, TUnknown, TFalse)
       }
       conjs.foldLeft(start) {
         case (currSet, c) =>

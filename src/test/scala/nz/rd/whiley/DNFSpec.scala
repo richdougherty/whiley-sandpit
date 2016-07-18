@@ -270,18 +270,19 @@ class DNFSpec extends FreeSpec with Matchers {
         }
       }
       "multiple conjunctions" - {
-        "disj() | !root:Int | !root:Null --> disj(false | !root:Int | !root:Null)" in {
+        "disj() | root:Int | root:Null --> disj(false | conj(root:Int) | conj(root:Null))" in {
+          (DNF.Disj.Empty | rootIsInt | rootIsNull) should be (new DNF.Disj(TFalse, Set(DNF.Conj(rootIsInt), DNF.Conj(rootIsNull))))
+        }
+        "disj() | !root:Int | !root:Null --> disj(false | conj(!root:Int) | conj(!root:Null))" in {
           (DNF.Disj.Empty | !rootIsInt | !rootIsNull) should be (new DNF.Disj(TFalse, Set(DNF.Conj(!rootIsInt), DNF.Conj(!rootIsNull))))
         }
       }
       "multiple disjunctions" - {
         "disj(true) & disj(conj(root:Int)) --> disj(conj(root:int))" in {
-          val a = DNF.Disj(TTrue)
-          val b = DNF.Disj(rootIsInt)
-          println("Calculating...")
-          val c = a & b
-          println("Done")
           (DNF.Disj(TTrue) & DNF.Disj(rootIsInt)) should be(DNF.Disj(rootIsInt))
+        }
+        "disj() | root:Int | root:Null --> disj(false | conj(root:Int) | conj(root:Null))" in {
+          ((DNF.Disj.Empty | rootIsInt) | (DNF.Disj.Empty | rootIsNull)) should be (new DNF.Disj(TFalse, Set(DNF.Conj(rootIsInt), DNF.Conj(rootIsNull))))
         }
       }
     }
