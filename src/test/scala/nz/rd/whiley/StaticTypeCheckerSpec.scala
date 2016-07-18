@@ -53,11 +53,17 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
     "should typecheck µX.!X as unknown" in {
       check(Tree.Recursive("X", Tree.Negation(Tree.Variable("X")))) should be(Set(DNF.Disj(TUnknown)))
     }
+    "should typecheck !(µX.!X) as unknown" in {
+      check(Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) should be(Set(DNF.Disj(TUnknown)))
+    }
     "should typecheck µX.(X|) as unknown" in {
       check(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"))))) should be(Set(DNF.Disj(TUnknown)))
     }
     "should typecheck !µX.(X|) as unknown" in {
       check(Tree.Negation(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X")))))) should be(Set(DNF.Disj(TUnknown)))
+    }
+    "should typecheck µX.!(X|) as unknown" in {
+      check(Tree.Recursive("X", Tree.Negation(Tree.Union(List(Tree.Variable("X")))))) should be(Set(DNF.Disj(TUnknown)))
     }
     "should typecheck µX.X|int as unknown | root:int" in {
       check(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) should be(Set(
