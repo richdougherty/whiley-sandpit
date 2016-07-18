@@ -22,7 +22,10 @@ object StaticTypeChecker extends BaseTypeChecker {
   override protected def resultDisjunction(r1: Disj, r2: Disj): Disj = r1 | r2
   override protected def resultConjunction(r1: Disj, r2: Disj): Disj = r1 & r2
   override protected def resultCondition[C](r: Disj, ifTrue: =>Solver[C,R], ifFalse: =>Solver[C,R]): Solver[C,R] = {
-    ifTrue.map(_ & r) ++ ifFalse.map(_ & !r)
+    for {
+      t <- ifTrue
+      f <- ifFalse
+    } yield (r & t) | (!r & f)
   }
 
   def check(t: Tree): List[Disj] = check(Graph.fromTree(t))
