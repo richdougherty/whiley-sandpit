@@ -83,32 +83,34 @@ trait BaseTypeChecker {
                       childCheck <- check0(graph, value, childTypeId)
                     } yield resultDisjunction(acc, childCheck)
                 }
-              case Graph.Node.Product(childTypeIds) => const(RTrue) //resultCondition(
-//                isProductKind(childTypeIds.size, value),
-//                for {
-//                  capturedContext <- Solver.getContext[Context]
-//                  r <- Solver.wrapContext[Context,X,R](
-//                    c => c.extraContext,
-//                    x => capturedContext.copy(extraContext = x)
-//                  ) {
-//                    checkCompoundType(value, typeId, { childValues: List[V] =>
-//                      assert(childValues.size == childTypeIds.size) // Should be enforced by isProductKind condition
-//                      Solver.wrapContext[X, Context, R](
-//                        x => capturedContext.copy(extraContext = x),
-//                        c => c.extraContext
-//                      ) {
-//                        Solver.foldLeft[Context, (Graph.Id, V), R]((childTypeIds zip childValues), RTrue) {
-//                          case (acc, (childTypeId, childValue)) =>
-//                            for {
-//                              childCheck <- check0(graph, childValue, childTypeId)
-//                            } yield resultConjunction(acc, childCheck)
-//                        }
-//                      }
-//                    })
-//                  }
-//                } yield r,
-//                const(RFalse)
-//              )
+              case Graph.Node.Product(childTypeIds) => resultCondition(
+                isProductKind(childTypeIds.size, value),
+                for {
+                  capturedContext <- Solver.getContext[Context]
+                  r <- Solver.wrapContext[Context,X,R](
+                    c => c.extraContext,
+                    x => capturedContext.copy(extraContext = x)
+                  ) {
+                    println(s"Calling checkCompoundType for $value, $typeId, $typeNode")
+                    checkCompoundType(value, typeId, typeNode, { childValues: List[V] =>
+                      println(s"checkCompoundType/checkChildren called with $childValues")
+                      assert(childValues.size == childTypeIds.size) // Should be enforced by isProductKind condition
+                      Solver.wrapContext[X, Context, R](
+                        x => capturedContext.copy(extraContext = x),
+                        c => c.extraContext
+                      ) {
+                        Solver.foldLeft[Context, (Graph.Id, V), R]((childTypeIds zip childValues), RTrue) {
+                          case (acc, (childTypeId, childValue)) =>
+                            for {
+                              childCheck <- check0(graph, childValue, childTypeId)
+                            } yield resultConjunction(acc, childCheck)
+                        }
+                      }
+                    })
+                  }
+                } yield r,
+                const(RFalse)
+              )
             }
           }
           _ <- leaveCheckFrame(value, typeId)

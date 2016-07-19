@@ -93,18 +93,26 @@ object StaticTypeChecker extends BaseTypeChecker {
           val childSolutions: Solutions[ExtraContext, Disj] =
           checkChildren(childValues).solve(x.copy(compoundTypeChecks = x.compoundTypeChecks + typeId))
 
+          println(s"Solutions for children: $childSolutions")
+
           // The children m
-          val assumptionMap: Map[Set[Ternary], Set[Ternary]] = childSolutions.list.foldLeft[Map[Set[Ternary], Set[Ternary]]](Map.empty) {
-            case (acc, Solution(x2: ExtraContext, disj)) =>
+          val assumptionMap: Map[Set[Ternary], (Set[Ternary], List[Solution[ExtraContext,Disj]])] =
+              childSolutions.list.foldLeft[Map[Set[Ternary], (Set[Ternary], List[Solution[ExtraContext,Disj]])]](Map.empty) {
+            case (acc, solution@Solution(x2: ExtraContext, disj)) =>
               // Get the set of assumptions that were made.
               val assumptions: Set[Ternary] = x2.nestedResultAssumptions.getOrElse(typeId, Set.empty)
+              val existingAccEntry: (Set[Ternary], List[Solution[ExtraContext,Disj]]) =
+                acc.getOrElse(assumptions, (Set.empty[Ternary], Nil))
+
               // Get the possible ternary values for the Disj expression. The Disj may have a single solution, e.g.
               // TFalse, or it may have a range of values, e.g. {TFalse, TUnknown, TTrue}.
               val solutionValues: Set[Ternary] = disj.possibleValues
-              val existingValues: Set[Ternary] = acc.getOrElse(assumptions, Set.empty)
-              val newValues: Set[Ternary] = existingValues ++ solutionValues
+              val newValues: (Set[Ternary], List[Solution[ExtraContext,Disj]]) =
+                (existingAccEntry._1 ++ solutionValues, solution::existingAccEntry._2)
               acc + (assumptions -> newValues)
           }
+
+          println(s"Assumption map for children: $assumptionMap")
 
           // Now walk through the assumptions building a list of
 
@@ -116,6 +124,7 @@ object StaticTypeChecker extends BaseTypeChecker {
             }
             setForBit(0, TTrue) ++ setForBit(1, TFalse) ++ setForBit(3, TUnknown)
           }).toList
+          println(s"All ternary combinations: $all")
 
           @tailrec
           def loop(workRemaining: Seq[Set[Ternary]], allWork: Set[Set[Ternary]], possible: Set[Ternary]): Set[Ternary] = {
@@ -129,7 +138,7 @@ object StaticTypeChecker extends BaseTypeChecker {
                 case workHead :: workTail =>
                   assumptionMap.get(workHead) match {
                     case None => loop(workTail, allWork, possible)
-                    case Some(values) =>
+                    case Some((values, _)) =>
                       val newPossible = possible ++ values
                       if (newPossible == possible) {
                         // No change
@@ -146,8 +155,13 @@ object StaticTypeChecker extends BaseTypeChecker {
             }
           }
 
-          val possible = loop(List(Set.empty, Set(TFalse)), Set(Set(TFalse)), Set(TFalse))
-          Solutions(possible.map(t => Solution(x, Disj(t))).toList)
+          val possible: Set[Ternary] = loop(List(Set.empty, Set(TFalse)), Set(Set(TFalse)), Set(TFalse))
+          println(s"Possible values for children: $possible")
+          val solutions: List[Solution[ExtraContext, Disj]] = all.filter(_.subsetOf(possible)).flatMap { p: Set[Ternary] =>
+            assumptionMap.getOrElse(p, (Set.empty, Nil))._2
+          }
+          println(s"Possible solutions for children: $solutions")
+          Solutions(solutions)
         }
       }
     } yield r
