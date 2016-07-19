@@ -74,12 +74,7 @@ object DNF {
     }
 
     def possibleValues: Set[Ternary] = {
-      val start: Set[Ternary] = constant match {
-        case TTrue => Set(TTrue)
-        case TUnknown => Set(TTrue, TUnknown)
-        case TFalse => Set(TTrue, TUnknown, TFalse)
-      }
-      conjs.foldLeft(start) {
+      conjs.foldLeft(Set(constant)) {
         case (currSet, c) =>
           for {
             a <- currSet
@@ -169,20 +164,13 @@ object DNF {
       }
     }
     def possibleValues: Set[Ternary] = {
-      val start: Set[Ternary] = constant match {
-        case TTrue => Set(TTrue, TUnknown, TFalse)
-        case TUnknown => Set(TUnknown, TFalse)
-        case TFalse => Set(TFalse)
+      terms.foldLeft(Set(constant)) {
+        case (currSet, term) =>
+          for {
+            a <- currSet
+            b <- term.possibleValues
+          } yield a & b
       }
-//      terms.foldLeft(start) {
-//        case (currSet, term) =>
-//          for {
-//            a <- currSet
-//            b <- term.possibleValues
-//          } yield a & b
-//      }
-      // Optimization for above loop since terms can't evaluate to TUnknown at the current time
-      if (terms.isEmpty) { start } else { start - TUnknown }
     }
 
     override def equals(other: Any): Boolean = other match {

@@ -55,6 +55,7 @@ object StaticTypeChecker extends BaseTypeChecker {
 
         Solver { x: ExtraContext =>
           def assumedSolution(result: Ternary): Solution[X,Disj] = {
+            println(s"Assuming $result")
             // Record the fact that required assumption. The map may already have this assumption if there is more
             // than one nested typecheck. It's OK to add the same assumed value twice.
             val existingAssumptionsForType: Set[Ternary] = x.nestedResultAssumptions.getOrElse(typeId, Set.empty)
@@ -107,6 +108,7 @@ object StaticTypeChecker extends BaseTypeChecker {
               // Get the possible ternary values for the Disj expression. The Disj may have a single solution, e.g.
               // TFalse, or it may have a range of values, e.g. {TFalse, TUnknown, TTrue}.
               val solutionValues: Set[Ternary] = disj.possibleValues
+              println(s"Recording child solution $solution with assumptions $assumptions and possible values: $solutionValues")
               val newValues: (Set[Ternary], List[Solution[ExtraContext,Disj]]) =
                 (existingAccEntry._1 ++ solutionValues, solution::existingAccEntry._2)
               acc + (assumptions -> newValues)

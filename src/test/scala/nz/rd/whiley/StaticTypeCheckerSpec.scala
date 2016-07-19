@@ -75,6 +75,21 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
         DNF.Disj(DNF.Conj(DNF.Term.isKind(DNF.RootVal, DNF.Kind.Product(1)), DNF.Term.isKind(DNF.ProductVal(DNF.RootVal, 0), DNF.Kind.Int)))
       ))
     }
+    "should typecheck <!int> as root:product(1) & !root[0]:int" in {
+      check(Tree.Product(List(Tree.Negation(Tree.Int)))) should be(Set(
+        DNF.Disj(DNF.Conj(DNF.Term.isKind(DNF.RootVal, DNF.Kind.Product(1)), DNF.Term.isNotKind(DNF.ProductVal(DNF.RootVal, 0), DNF.Kind.Int)))
+      ))
+    }
+    "should typecheck µX.<X> as false" in {
+      check(Tree.Recursive("X", Tree.Product(List(Tree.Variable("X"))))) should be(Set(
+        DNF.Disj(TFalse)
+      ))
+    }
+    "should typecheck µX.<!X> as false" in {
+      check(Tree.Recursive("X", Tree.Product(List(Tree.Negation(Tree.Variable("X")))))) should be(Set(
+        DNF.Disj(TFalse)
+      ))
+    }
   }
 
 }

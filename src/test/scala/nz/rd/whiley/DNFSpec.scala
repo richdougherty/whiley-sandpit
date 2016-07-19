@@ -4,8 +4,6 @@ import org.scalatest._
 
 class DNFSpec extends FreeSpec with Matchers {
 
-//  import DNF.Implicits._
-
   "Terms" - {
     "should support negation" in {
       !DNF.Term(true, DNF.RootVal, DNF.Kind.Int) should be(DNF.Term(false, DNF.RootVal, DNF.Kind.Int))
@@ -356,6 +354,41 @@ class DNFSpec extends FreeSpec with Matchers {
         }
         "!disj(unknown | conj(root:Int)) --> disj(conj(unknown & !root:int))" in {
           !(DNF.Disj.Unknown | rootIsInt) should be(DNF.Disj(DNF.Conj.Unknown & !rootIsInt))
+        }
+      }
+    }
+    "possible values" - {
+      "constant disjunctions" - {
+        "possible values of disj(true) should be {true}" in {
+          DNF.Disj(TTrue).possibleValues should be (Set(TTrue))
+        }
+        "possible values of disj(false) should be {false}" in {
+          DNF.Disj(TFalse).possibleValues should be (Set(TFalse))
+        }
+        "possible values of disj(unknown) should be {unknown}" in {
+          DNF.Disj(TUnknown).possibleValues should be (Set(TUnknown))
+        }
+      }
+      "single term disjunctions" - {
+        "possible values of disj(true) | root:Int should be {true}" in {
+          (DNF.Disj.True | rootIsInt).possibleValues should be (Set(TTrue))
+        }
+        "possible values of disj(unknown) | root:Int should be {true, unknown}" in {
+          (DNF.Disj.Unknown | rootIsInt).possibleValues should be (Set(TTrue, TUnknown))
+        }
+        "possible values of disj(false) | root:Int should be {true, false}" in {
+          (DNF.Disj.False | rootIsInt).possibleValues should be (Set(TFalse, TTrue))
+        }
+      }
+      "single term conjunctions" - {
+        "possible values of disj(true) & root:Int should be {true, false}" in {
+          (DNF.Disj.True & rootIsInt).possibleValues should be (Set(TTrue, TFalse))
+        }
+        "possible values of disj(unknown) & root:Int should be {false, unknown}" in {
+          (DNF.Disj.Unknown & rootIsInt).possibleValues should be (Set(TFalse, TUnknown))
+        }
+        "possible values of disj(false) & root:Int should be {false}" in {
+          (DNF.Disj.False & rootIsInt).possibleValues should be (Set(TFalse))
         }
       }
     }
