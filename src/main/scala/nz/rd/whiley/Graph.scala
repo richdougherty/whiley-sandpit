@@ -64,6 +64,7 @@ final class Graph private[Graph] (
             case Node.Any | Node.Void | Node.Int | Node.Null => ()
             case Node.Negation(nodeChild) => findRecursion(nodeChild)
             case Node.Union(nodeChildren) => nodeChildren.foreach(findRecursion)
+            case Node.Intersection(nodeChildren) => nodeChildren.foreach(findRecursion)
             case Node.Product(nodeChildren) => nodeChildren.foreach(findRecursion)
           }
         case Some(NotRecursive) =>
@@ -88,6 +89,7 @@ final class Graph private[Graph] (
           case Node.Int => Tree.Int
           case Node.Negation(nodeChild) => Tree.Negation(convert(nodeChild))
           case Node.Union(nodeChildren) => Tree.Union(nodeChildren.map(convert))
+          case Node.Intersection(nodeChildren) => Tree.Intersection(nodeChildren.map(convert))
           case Node.Product(nodeChildren) => Tree.Product(nodeChildren.map(convert))
         }
       }
@@ -117,6 +119,8 @@ final class Graph private[Graph] (
         val node = nodes(id)
         node match {
           case Node.Union(children) =>
+            children.foreach(markReachable(_))
+          case Node.Intersection(children) =>
             children.foreach(markReachable(_))
           case Node.Negation(child) =>
             markReachable(child)
@@ -168,6 +172,8 @@ object Graph {
           g += Node.Negation(convert(child, nameBindings))
         case Tree.Union(children) =>
           g += Node.Union(children.map(convert(_, nameBindings)))
+        case Tree.Intersection(children) =>
+          g += Node.Intersection(children.map(convert(_, nameBindings)))
         case Tree.Product(children) =>
           g += Node.Product(children.map(convert(_, nameBindings)))
         case Tree.Recursive(name, body) =>
@@ -184,6 +190,8 @@ object Graph {
               case Node.Negation(c) => Node.Negation(replaceId(c))
               case Node.Union(cs) =>
                 Node.Union(cs.map(replaceId))
+              case Node.Intersection(cs) =>
+                Node.Intersection(cs.map(replaceId))
               case Node.Product(cs) => Node.Product(cs.map(replaceId))
             }
             g(id) = newNode
@@ -205,6 +213,7 @@ object Graph {
     final case object Int extends Node
     final case class Negation(child: Id) extends Node
     final case class Union(children: List[Id]) extends Node
+    final case class Intersection(children: List[Id]) extends Node
     final case class Product(children: List[Id]) extends Node
   }
 }

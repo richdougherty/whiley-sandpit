@@ -83,6 +83,13 @@ trait BaseTypeChecker {
                       childCheck <- check0(graph, value, childTypeId)
                     } yield resultDisjunction(acc, childCheck)
                 }
+              case Graph.Node.Intersection(childTypeIds) =>
+                Solver.foldLeft[Context, Graph.Id, R](childTypeIds, RTrue) {
+                  case (acc, childTypeId) =>
+                    for {
+                      childCheck <- check0(graph, value, childTypeId)
+                    } yield resultConjunction(acc, childCheck)
+                }
               case Graph.Node.Product(childTypeIds) => resultCondition(
                 isProductKind(childTypeIds.size, value),
                 for {
@@ -116,7 +123,10 @@ trait BaseTypeChecker {
           _ <- leaveCheckFrame(value, typeId)
         } yield typeCheck
       }
-    } yield loopCheck
+    } yield {
+      println(s"Result for $value against type $typeId  (${graph.nodes(typeId)}): $loopCheck")
+      loopCheck
+    }
   }
 
 }

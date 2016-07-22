@@ -52,6 +52,12 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
             for {
               sizes <- genSizes(remaining - 2)
               children <- Gen.sequence[List[Tree], Tree](sizes.map(genTree(_, boundNamesCount, boundNamesCount)))
+            } yield Tree.Intersection(children)
+          },
+          1 -> {
+            for {
+              sizes <- genSizes(remaining - 2)
+              children <- Gen.sequence[List[Tree], Tree](sizes.map(genTree(_, boundNamesCount, boundNamesCount)))
             } yield Tree.Product(children)
           }
         )
@@ -99,7 +105,8 @@ class IntersectionSpec extends FreeSpec with PropertyChecks with Matchers {
         1 -> Node.Null,
         1 -> Node.Int,
         1 -> idGen.map(Node.Negation(_)), // Actually size 2, not 1, but doesn't increase complexity
-        1 -> Gen.listOfN(nodeSize - 1, idGen).map(Node.Union(_))
+        1 -> Gen.listOfN(nodeSize - 1, idGen).map(Node.Union(_)),
+        1 -> Gen.listOfN(nodeSize - 1, idGen).map(Node.Intersection(_))
       )
     }
 

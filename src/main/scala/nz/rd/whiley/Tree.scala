@@ -8,6 +8,7 @@ object Tree {
   final case object Int extends Tree
   final case class Negation(child: Tree) extends Tree
   final case class Union(children: List[Tree]) extends Tree
+  final case class Intersection(children: List[Tree]) extends Tree
   final case class Product(children: List[Tree]) extends Tree
   final case class Recursive(name: String, body: Tree) extends Tree
   final case class Variable(name: String) extends Tree

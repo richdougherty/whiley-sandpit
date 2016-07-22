@@ -43,6 +43,9 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
     "should typecheck !any as false" in {
       check(Tree.Negation(Tree.Any)) should be(Set(DNF.Disj.False))
     }
+    "should typecheck any|int as true" in {
+      check(Tree.Union(List(Tree.Any, Tree.Int))) should be(Set(DNF.Disj(TTrue)))
+    }
     "should typecheck void|int as root:int" in {
       check(Tree.Union(List(Tree.Void, Tree.Int))) should be(Set(DNF.Disj(DNF.Term.isKind(DNF.RootVal, DNF.Kind.Int))))
     }
@@ -54,6 +57,20 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
         )
       ))
     }
+    "should typecheck any&int as root:int" in {
+      check(Tree.Intersection(List(Tree.Any, Tree.Int))) should be(Set(
+        DNF.Disj(TTrue) & DNF.Disj(DNF.Term.isKind(DNF.RootVal, DNF.Kind.Int))
+      ))
+    }
+    "should typecheck void&int as false" in {
+      check(Tree.Intersection(List(Tree.Void, Tree.Int))) should be(Set(DNF.Disj(TFalse)))
+    }
+    "should typecheck null&int as false" in {
+      check(Tree.Intersection(List(Tree.Null, Tree.Int))) should be(Set(DNF.Disj(TFalse)))
+    }
+    "should typecheck null&<int> as false" in {
+      check(Tree.Intersection(List(Tree.Null, Tree.Product(List(Tree.Int))))) should be(Set(DNF.Disj(TFalse)))
+    }
     "should typecheck µX.!X as unknown" in {
       check(Tree.Recursive("X", Tree.Negation(Tree.Variable("X")))) should be(Set(DNF.Disj(TUnknown)))
     }
@@ -63,15 +80,26 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
     "should typecheck µX.(X|) as unknown" in {
       check(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"))))) should be(Set(DNF.Disj(TUnknown)))
     }
-    "should typecheck !µX.(X|) as unknown" in {
-      check(Tree.Negation(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X")))))) should be(Set(DNF.Disj(TUnknown)))
+    "should typecheck µX.(X&) as unknown" in {
+      check(Tree.Recursive("X", Tree.Intersection(List(Tree.Variable("X"))))) should be(Set(DNF.Disj(TUnknown)))
+    }
+    "should typecheck !µX.(X&) as unknown" in {
+      check(Tree.Negation(Tree.Recursive("X", Tree.Intersection(List(Tree.Variable("X")))))) should be(Set(DNF.Disj(TUnknown)))
     }
     "should typecheck µX.!(X|) as unknown" in {
       check(Tree.Recursive("X", Tree.Negation(Tree.Union(List(Tree.Variable("X")))))) should be(Set(DNF.Disj(TUnknown)))
     }
+    "should typecheck µX.!(X&) as unknown" in {
+      check(Tree.Recursive("X", Tree.Negation(Tree.Intersection(List(Tree.Variable("X")))))) should be(Set(DNF.Disj(TUnknown)))
+    }
     "should typecheck µX.X|int as unknown | root:int" in {
       check(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) should be(Set(
         DNF.Disj(TUnknown) | DNF.Disj(DNF.Term.isKind(DNF.RootVal, DNF.Kind.Int))
+      ))
+    }
+    "should typecheck µX.X&int as unknown & root:int" in {
+      check(Tree.Recursive("X", Tree.Intersection(List(Tree.Variable("X"), Tree.Int)))) should be(Set(
+        DNF.Disj(TUnknown) & DNF.Disj(DNF.Term.isKind(DNF.RootVal, DNF.Kind.Int))
       ))
     }
     "should typecheck <int> as root:product(1) & root[0]:int" in {
@@ -97,6 +125,9 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
     }
     "possible µX.(null|<int,X>) typecheck values should be {true, false}" in {
       possibleValues(Tree.Recursive("X", Tree.Union(List(Tree.Null, Tree.Product(List(Tree.Int, Tree.Variable("X"))))))) should be(Set(TTrue, TFalse))
+    }
+    "possible µX.(null&<int,X>) typecheck values should be {false}" in {
+      possibleValues(Tree.Recursive("X", Tree.Intersection(List(Tree.Null, Tree.Product(List(Tree.Int, Tree.Variable("X"))))))) should be(Set(TFalse))
     }
   }
 
