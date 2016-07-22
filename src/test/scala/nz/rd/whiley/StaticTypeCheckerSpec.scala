@@ -9,6 +9,10 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
   def check(g: Graph): Set[DNF.Disj] = {
     StaticTypeChecker.check(g).toSet
   }
+  def possibleValues(t: Tree): Set[Ternary] = possibleValues(Graph.fromTree(t))
+  def possibleValues(g: Graph): Set[Ternary] = {
+    StaticTypeChecker.check(g).toSet.flatMap((d: DNF.Disj) => d.possibleValues)
+  }
 
   "StaticTypeChecker" - {
 
@@ -85,10 +89,14 @@ class StaticTypeCheckerSpec extends FreeSpec with Matchers {
         DNF.Disj(TFalse)
       ))
     }
-    "should typecheck µX.<!X> as false" in {
-      check(Tree.Recursive("X", Tree.Product(List(Tree.Negation(Tree.Variable("X")))))) should be(Set(
-        DNF.Disj(TFalse)
-      ))
+    "possible µX.<X> typecheck values should be {false}" in {
+      possibleValues(Tree.Recursive("X", Tree.Product(List(Tree.Variable("X"))))) should be(Set(TFalse))
+    }
+    "possible µX.<!X> typecheck values should be {true, false}" in {
+      possibleValues(Tree.Recursive("X", Tree.Product(List(Tree.Negation(Tree.Variable("X")))))) should be(Set(TTrue, TFalse))
+    }
+    "possible µX.(null|<int,X>) typecheck values should be {true, false}" in {
+      possibleValues(Tree.Recursive("X", Tree.Union(List(Tree.Null, Tree.Product(List(Tree.Int, Tree.Variable("X"))))))) should be(Set(TTrue, TFalse))
     }
   }
 
