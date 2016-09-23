@@ -98,6 +98,8 @@ final class IntersectionAlgorithm(
               possiblyContractive(id) = true
             case Node.Union(children) =>
               if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
+            case Node.Intersection(children) =>
+              if (children.exists(getContractive(_))) { possiblyContractive(id) = true }
             case Node.Negation(child) => possiblyContractive(id) = getContractive(child)
             case Node.Product(Nil) =>
               possiblyContractive(id) = true

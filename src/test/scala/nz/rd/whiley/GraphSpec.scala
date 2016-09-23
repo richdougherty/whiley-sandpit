@@ -2,7 +2,7 @@ package nz.rd.whiley
 
 import org.scalatest._
 
-class TypeSpec extends FreeSpec with Matchers {
+class GraphSpec extends FreeSpec with Matchers {
 
   def roundTrip(t: Tree): Unit = {
     val g = Graph.fromTree(t)
