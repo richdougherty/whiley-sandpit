@@ -124,7 +124,6 @@ trait BaseTypeChecker {
         } yield typeCheck
       }
     } yield {
-      println(s"Result for $value against type $typeId  (${graph.nodes(typeId)}): $loopCheck")
       loopCheck
     }
   }

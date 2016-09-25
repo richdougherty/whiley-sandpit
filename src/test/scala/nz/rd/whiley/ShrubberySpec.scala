@@ -1,8 +1,9 @@
 package nz.rd.whiley
 
 import org.scalatest._
+import org.scalatest.prop.PropertyChecks
 
-class ShrubberySpec extends FreeSpec with Matchers with Inside {
+class ShrubberySpec extends FreeSpec with Matchers with Inside with PropertyChecks {
 
   "Shrubbery.fromTree" - {
     "should handle the 'any' type" in {
@@ -53,6 +54,35 @@ class ShrubberySpec extends FreeSpec with Matchers with Inside {
           sy(sid3) should be (Shrub.Int)
       }
     }
+
+    def checkFromTree(tree: Tree, value: Value) = {
+      val treeCheck: Boolean = TypeChecker.check(value, tree)
+      val shrubbery: Shrubbery = Shrubbery.fromTree(tree)
+      val shrubberyCheck: Boolean = shrubbery.accepts(value)
+      withClue(s"Original: $tree, simplified: $shrubbery") {
+        shrubberyCheck should be(treeCheck)
+      }
+    }
+
+    "should accept same values as original Tree '<<>>'" in {
+      checkFromTree(Tree.Product(List(Tree.Product(List()))), Value.Product(List(Value.Int(1))))
+    }
+
+    "should accept same values as original Tree" in {
+      forAll(Generators.treeGen, Generators.valueGen)(checkFromTree(_, _))
+    }
+  }
+  "Shrubbery.accepts" - {
+    "should not accept <> as a value of type <<>>" in {
+      Shrubbery.fromTree(Tree.Product(List(Tree.Product(List())))).accepts(Value.Product(Nil)) should be (false)
+    }
+    "should not accept <1> as a value of type <<>>" in {
+      Shrubbery.fromTree(Tree.Product(List(Tree.Product(List())))).accepts(Value.Product(List(Value.Int(1)))) should be (false)
+    }
+    "should accept <1> as a value of type <int>" in {
+      Shrubbery.fromTree(Tree.Product(List(Tree.Int))).accepts(Value.Product(List(Value.Int(1)))) should be (true)
+    }
+
   }
 
 }

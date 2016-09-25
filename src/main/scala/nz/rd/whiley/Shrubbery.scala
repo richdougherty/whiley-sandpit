@@ -46,6 +46,26 @@ final class Shrubbery private[Shrubbery] (
     this += (id, n)
     id
   }
+
+  def accepts(v: Value): Boolean = {
+    def rootAccepts(sid: Id, v: Value): Boolean = {
+      val s: Shrub = shrubs(sid)
+      branchAccepts(s, v)
+    }
+    def branchAccepts(s: Shrub, v: Value): Boolean = (s, v) match {
+      case (Shrub.Any, _) => true
+      case (Shrub.Void, _) => false
+      case (Shrub.Int, Value.Int(_)) => true
+      case (Shrub.Null, Value.Null) => true
+      case (Shrub.Intersection(ss), _) => ss.forall(branchAccepts(_, v))
+      case (Shrub.Union(ss), _) => ss.exists(branchAccepts(_, v))
+      case (Shrub.Negation(c), _) => !branchAccepts(c, v)
+      case (Shrub.Product(sids), Value.Product(vs)) =>
+        sids.length == vs.length && (sids zip vs).forall { case (sid, v) => rootAccepts(sid, v) }
+      case _ => false
+    }
+    rootAccepts(root, v)
+  }
 }
 
 object Shrubbery {
