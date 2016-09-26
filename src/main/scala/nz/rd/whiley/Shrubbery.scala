@@ -46,6 +46,12 @@ final class Shrubbery private[Shrubbery] (
     this += (id, n)
     id
   }
+  def copy: Shrubbery = {
+    val other = Shrubbery.empty
+    other.root = root
+    other.shrubs ++= shrubs
+    other
+  }
 
   def accepts(v: Value): Boolean = {
     def rootAccepts(sid: Id, v: Value): Boolean = {
@@ -184,5 +190,42 @@ object ShrubberyAlgorithms {
     val reachable = allRefs(sy.root::Nil, Set(sy.root))
     val toRemove = sy.shrubs.keys.toSet diff reachable
     for (id <- toRemove) { sy.shrubs.remove(id) }
+  }
+
+  def simplifyIdentities(sy: Shrubbery): Unit = {
+    val updated = sy.shrubs.mapValues(simplifyIdentities(_))
+    sy.shrubs ++= updated
+  }
+
+  def simplifyIdentities(s: Shrub): Shrub = s match {
+    case Shrub.Any => Shrub.Any
+    case Shrub.Void => Shrub.Void
+    case Shrub.Null => Shrub.Null
+    case Shrub.Int => Shrub.Int
+    case Shrub.Negation(Shrub.Negation((c))) => c
+    case Shrub.Union(children) =>
+      children.map(simplifyIdentities(_)).flatMap {
+        case Shrub.Void => Nil
+        case Shrub.Union(children) => children
+        case c => c::Nil
+      }.distinct match {
+        case Nil => Shrub.Void
+        case List(c) => c
+        case cs if cs.contains(Shrub.Any) => Shrub.Any
+        case cs => Shrub.Union(cs)
+      }
+    case Shrub.Intersection(children) =>
+      children.map(simplifyIdentities(_)).flatMap {
+        case Shrub.Any => Nil
+        case Shrub.Intersection(children) => children
+        case c => c::Nil
+      }.distinct match {
+        case Nil => Shrub.Any
+        case List(c) => c
+        case cs if cs.contains(Shrub.Void) => Shrub.Void
+        case cs => Shrub.Intersection(cs)
+      }
+    case p@Shrub.Product(children) => p
+    case _ => s
   }
 }

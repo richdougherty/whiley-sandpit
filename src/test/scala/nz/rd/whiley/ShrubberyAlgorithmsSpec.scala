@@ -3,6 +3,8 @@ package nz.rd.whiley
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 
+import Generators._
+
 class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with PropertyChecks {
 
   "ShrubberyAlgorithms.garbageCollect" - {
@@ -47,5 +49,41 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
       sy.shrubs should be (Map(1 -> Shrub.Int))
     }
   }
-
+  "ShrubberyAlgorithms.simplifyIdentity(Shrub)" - {
+    "should simplify any shrub to any" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Any) should be(Shrub.Any)
+    }
+    "should simplify void shrub to void" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Void) should be(Shrub.Void)
+    }
+    "should simplify null shrub" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Null) should be(Shrub.Null)
+    }
+    "should simplify int shrub to int" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Int) should be(Shrub.Int)
+    }
+    "should simplify int|any shrub to any" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Union(List(Shrub.Int, Shrub.Any))) should be(Shrub.Any)
+    }
+    "should simplify int|void shrub to int" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Union(List(Shrub.Int, Shrub.Void))) should be(Shrub.Int)
+    }
+    "should simplify !!int shrub" in {
+      ShrubberyAlgorithms.simplifyIdentities(Shrub.Negation(Shrub.Negation(Shrub.Int))) should be(Shrub.Int)
+    }
+  }
+  "ShrubberyAlgorithms.simplifyIdentity(Shrubbery)" - {
+    def simplifiedAcceptsSame(tree: Tree, value: Value) = {
+      val orig: Shrubbery = Shrubbery.fromTree(tree)
+      val origCheck: Boolean = orig.accepts(value)
+      val simplified: Shrubbery = orig.copy
+      val simplifiedCheck: Boolean = simplified.accepts(value)
+      withClue(s"Original: $tree, simplified: $simplified") {
+        simplifiedCheck should be(origCheck)
+      }
+    }
+    "should accept same values" in {
+      forAll(treeGen, valueGen)(simplifiedAcceptsSame(_, _))
+    }
+  }
 }
