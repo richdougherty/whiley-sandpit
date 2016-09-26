@@ -77,6 +77,7 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
       val orig: Shrubbery = Shrubbery.fromTree(tree)
       val origCheck: Boolean = orig.accepts(value)
       val simplified: Shrubbery = orig.copy
+      ShrubberyAlgorithms.simplifyIdentities(simplified)
       val simplifiedCheck: Boolean = simplified.accepts(value)
       withClue(s"Original: $tree, simplified: $simplified") {
         simplifiedCheck should be(origCheck)
@@ -86,4 +87,36 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
       forAll(treeGen, valueGen)(simplifiedAcceptsSame(_, _))
     }
   }
+  "ShrubberyAlgorithms.removeNonterminatingLoops" - {
+    "should keep 'int' type unchanged" in {
+      val sy = Shrubbery.empty
+      sy.root = 0
+      sy.shrubs += (0 -> Shrub.Int)
+      ShrubberyAlgorithms.removeNonterminatingLoops(sy)
+      sy.root should be (0)
+      sy.shrubs should be (Map(0 -> Shrub.Int))
+    }
+    "should change 'µX.<X>' to void" in {
+      val sy = Shrubbery.empty
+      sy.root = 0
+      sy.shrubs += (0 -> Shrub.Product(List(0)))
+      ShrubberyAlgorithms.removeNonterminatingLoops(sy)
+      sy.root should be (0)
+      sy.shrubs should be (Map(0 -> Shrub.Void))
+    }
+    def removedAcceptsSame(tree: Tree, value: Value) = {
+      val orig: Shrubbery = Shrubbery.fromTree(tree)
+      val origCheck: Boolean = orig.accepts(value)
+      val removed: Shrubbery = orig.copy
+      ShrubberyAlgorithms.removeNonterminatingLoops(removed)
+      val removedCheck: Boolean = removed.accepts(value)
+      withClue(s"Original: $tree, removed: $removed") {
+        removedCheck should be(origCheck)
+      }
+    }
+    "should accept same values" in {
+      forAll(treeGen, valueGen)(removedAcceptsSame(_, _))
+    }
+  }
+
 }

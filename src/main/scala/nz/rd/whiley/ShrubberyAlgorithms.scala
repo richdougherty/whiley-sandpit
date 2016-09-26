@@ -105,4 +105,44 @@ object ShrubberyAlgorithms {
     case p@Shrub.Product(children) => p
     case _ => s
   }
+
+  /**
+   * Conservatively convert uninhabitable recursive types into
+   * the void type. This converts types like `µX.<X>` to void.
+   * The conversion is conservative; especially in the presence
+   * of negation it is difficult to be precise. To get good
+   * results you may need to convert to disjunctive normal form
+   * (DNF) first.
+   */
+  def removeNonterminatingLoops(sy: Shrubbery): Unit = {
+    val shrubTermination = mutable.Map[Id, Boolean]()
+
+    def mayTerminate(s: Shrub): Boolean = s match {
+      case Shrub.Any => true
+      case Shrub.Void => false
+      case Shrub.Null => true
+      case Shrub.Int => true
+      case Shrub.Negation(Shrub.Any) => false
+      case Shrub.Negation(Shrub.Void) => true
+      case Shrub.Negation(Shrub.Int) => true
+      case Shrub.Negation(Shrub.Null) => true
+      case Shrub.Negation(Shrub.Product(_)) => true
+      case Shrub.Union(children) => children.map(mayTerminate).foldLeft(false)(_ | _)
+      case Shrub.Intersection(children) => children.map(mayTerminate).foldLeft(true)(_ & _)
+      case Shrub.Product(refs) => refs.map(shrubTermination.getOrElse(_, false)).foldLeft(true)(_ & _)
+      case _ => true
+    }
+
+    Utils.fixpoint(shrubTermination.toMap) {
+      for ((sid, shrub) <- sy.shrubs) {
+        shrubTermination(sid) = mayTerminate(shrub)
+      }
+    }
+
+    for (sid <- sy.shrubs.keys) {
+      if (!shrubTermination(sid)) {
+        sy.shrubs(sid) = Shrub.Void
+      }
+    }
+  }
 }
