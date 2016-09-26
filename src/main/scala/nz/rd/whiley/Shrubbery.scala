@@ -73,7 +73,7 @@ object Shrubbery {
 
   def fromTree(tree: Tree): Shrubbery = {
     val sy = fromTreeRaw(tree)
-    mergeIdentical(sy)
+    ShrubberyAlgorithms.mergeIdentical(sy)
     sy
   }
 
@@ -81,9 +81,9 @@ object Shrubbery {
 
     val g = empty
 
-    val treeShrubs = mutable.Map.empty[Tree,Id]
+    val treeShrubs = mutable.Map.empty[Tree, Id]
 
-    def convertRoot(tree: Tree, namedTrees: Map[String,Tree]): Id = {
+    def convertRoot(tree: Tree, namedTrees: Map[String, Tree]): Id = {
       treeShrubs.get(tree) match {
         case Some(id) =>
           id
@@ -96,7 +96,7 @@ object Shrubbery {
       }
     }
 
-    def convert(tree: Tree, visitedNames: immutable.Set[String], namedTrees: Map[String,Tree]): Shrub = {
+    def convert(tree: Tree, visitedNames: immutable.Set[String], namedTrees: Map[String, Tree]): Shrub = {
       tree match {
         case Tree.Any => Shrub.Any
         case Tree.Void => Shrub.Void
@@ -120,6 +120,9 @@ object Shrubbery {
     g.root = convertRoot(tree, Map.empty)
     g
   }
+}
+
+object ShrubberyAlgorithms {
 
   def mergeIdentical(sy: Shrubbery): Unit = {
     val replacements = mutable.Map.empty[Id, Id]
@@ -159,5 +162,27 @@ object Shrubbery {
       }
       sy.shrubs(sid) = convert(existingShrub)
     }
+  }
+
+  def garbageCollect(sy: Shrubbery): Unit = {
+    def shrubRefs(s: Shrub): Set[Id] = s match {
+      case Shrub.Any | Shrub.Void | Shrub.Null | Shrub.Int => Set.empty
+      case Shrub.Negation(child) => shrubRefs(child)
+      case Shrub.Union(children) => children.flatMap(shrubRefs(_)).toSet
+      case Shrub.Intersection(children) => children.flatMap(shrubRefs(_)).toSet
+      case p@Shrub.Product(children) => children.toSet
+    }
+    @tailrec
+    def allRefs(toVisit: List[Id], seen: Set[Id]): Set[Id] = toVisit match {
+      case Nil =>
+        seen
+      case head::tail =>
+        val newRefs = shrubRefs(sy(head))
+        allRefs(tail ++ (newRefs diff seen), seen union newRefs)
+    }
+
+    val reachable = allRefs(sy.root::Nil, Set(sy.root))
+    val toRemove = sy.shrubs.keys.toSet diff reachable
+    for (id <- toRemove) { sy.shrubs.remove(id) }
   }
 }
