@@ -102,13 +102,20 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
       (Disj.False | Disj.False) should be(Disj.False)
     }
     "should convert !(int|<>) to !int&!<>" in {
-      !(Disj(Term.Int) | Term.Product(Nil)) should be(Disj(!Term.Int) & Disj(!Term.Product(Nil)))
+      !(Disj(Term.Int) | Term.Product(Nil)) should be(Disj.Conjs(List(
+        Conj.Negs(List(
+          Neg(false, Term.Int),
+          Neg(false, Term.Product(Nil))
+        ))
+      )))
     }
     "should convert !(!int&!<>) to int|<>" in {
       !(Disj(!Term.Int) & !Term.Product(Nil)) should be(Disj.fromTerms(List(Term.Int, Term.Product(Nil))))
     }
     "should keep int|<> the same" in {
-      (Disj(Term.Int) | Term.Product(Nil)) should be(Disj.Conjs(List(Conj.Negs(List(Neg(true, Term.Int))), Conj.Negs(List(Neg(true, Term.Product(Nil)))))))
+      (Disj(Term.Int) | Term.Product(Nil)) should be(Disj.Conjs(List(
+        Conj.Negs(List(Neg(true, Term.Int))),
+        Conj.Negs(List(Neg(true, Term.Product(Nil)))))))
     }
     "should keep !int&!<> the same" in {
       (Disj(!Term.Int) & !Term.Product(Nil)) should be(Disj.Conjs(List(Conj.Negs(List(Neg(false, Term.Int), Neg(false, Term.Product(Nil)))))))
@@ -131,6 +138,12 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
     "should convert <>&int to false" in {
       (Disj(Term.Product(Nil)) & Term.Int) should be(Disj.False)
     }
+    "should convert int|<1>|!<2> to <1>|!<2>" in {
+      (Disj(Term.Int) | Term.Product(List(1)) | !Term.Product(List(2))) should be(Disj.Conjs(List(
+        Conj.Negs(List(Neg(true, Term.Product(List(1))))),
+        Conj.Negs(List(Neg(false, Term.Product(List(2)))))
+      )))
+    }
   }
 
   "ShrubberyDNF.dnf" - {
@@ -152,14 +165,9 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
       val s = d.toShrub
       s should be(Shrub.Void)
     }
-    "should convert !(int|<>) to (|(!int&!<>))" in {
-      val d = dnf {
-        import Shrub._
-        Negation(Union(List(Int, Product(Nil))))
-      }
-//      d should be(Disj(Conj.Negs(List(Neg(Term.Int), Neg(Term.Product(Nil))))))
-      val s = d.toShrub
-      s should be(Shrub.Union(List(Shrub.Intersection(List(Shrub.Int, Shrub.Product(Nil))))))
+    "should convert !(int|<>) to !int&!<>" in {
+      val d = dnf(Shrub.Negation(Shrub.Union(List(Shrub.Int, Shrub.Product(Nil)))))
+      d.toShrub should be(Shrub.Intersection(List(Shrub.Negation(Shrub.Int), Shrub.Negation(Shrub.Product(Nil)))))
     }
 
   }

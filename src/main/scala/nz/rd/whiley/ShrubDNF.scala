@@ -55,23 +55,19 @@ object ShrubDNF {
     case class Conjs(conjs: List[Conj.Negs]) extends Disj {
       require(!conjs.isEmpty)
       override def unary_!(): Disj = {
-        println("Starting !$this")
         val x: List[Disj] = conjs.map {
           case Conj.Negs(negs) =>
-            println(s"Working on conjunction: $negs")
             val negNegs: List[Neg] = negs.map(!_)
-            println(s"Negated elements: $negNegs")
             val disjFromConj: Disj = Disj.fromNegs(negNegs)
-            println(s"Converted to disjunction: $disjFromConj")
             disjFromConj
         }
-        println(s"Combining with &: $x")
         val res = x.foldLeft[Disj](Disj.True)(_ & _)
-        println(s"Got: $res")
         res
       }
       def |(that: Conj.Negs): Disj = {
-        if (conjs.exists(_.implies(that))) this else Disj.Conjs(that::conjs)
+        // Remove any Conj that is implied by the new Conj
+        val filtered: List[Conj.Negs] = conjs.filter(!_.implies(that))
+        Disj.Conjs(that::filtered)
       }
       override def &(that: Neg): Disj = Disj.fromConjs(conjs.map(_ & that))
       override def equals(that: Any): Boolean = that match {
@@ -141,20 +137,16 @@ object ShrubDNF {
         @tailrec
         def loop(acc: List[Neg], remaining: List[Neg]): Conj = remaining match {
           case head :: tail =>
-            println(s"Looping: $head & $that")
             if (head.implies(that)) {
-              println(s"$head.implies($that) -> no change")
               this
             } else if (that.implies(head)) {
               loop(acc, tail)
             } else if (head.implies(!that) || that.implies(!head)) {
-              println(s"$head.implies(!$that) || $that.implies(!$head) -> false")
               Conj.False
             } else {
               loop(head :: acc, tail)
             }
           case Nil =>
-            println(s"Adding $that")
             Conj.Negs(that :: acc)
         }
         loop(Nil, negs)
