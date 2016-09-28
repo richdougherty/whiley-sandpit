@@ -145,4 +145,17 @@ object ShrubberyAlgorithms {
       }
     }
   }
+
+  def convertToDNF(sy: Shrubbery): Unit = {
+    for ((sid, s) <- sy.shrubs.toList) {
+      sy(sid) = ShrubDNF.dnf(s).toShrub
+    }
+  }
+
+  def reduce(sy: Shrubbery): Unit = {
+    convertToDNF(sy)
+    removeNonterminatingLoops(sy)
+    garbageCollect(sy)
+  }
+
 }

@@ -118,5 +118,74 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
       forAll(treeGen, valueGen)(removedAcceptsSame(_, _))
     }
   }
-
+  "ShrubberyAlgorithms.convertToDNF" - {
+    "should keep 'int' type unchanged" in {
+      val sy = Shrubbery.empty
+      sy.root = 0
+      sy.shrubs += (0 -> Shrub.Int)
+      ShrubberyAlgorithms.convertToDNF(sy)
+      sy.root should be (0)
+      sy.shrubs should be (Map(0 -> Shrub.Int))
+    }
+    "should change 'null&!null' to void" in {
+      val sy = Shrubbery.empty
+      sy.root = 0
+      sy.shrubs += (0 -> Shrub.Intersection(List(Shrub.Null, Shrub.Negation(Shrub.Null))))
+      ShrubberyAlgorithms.convertToDNF(sy)
+      sy.root should be (0)
+      sy.shrubs should be (Map(0 -> Shrub.Void))
+    }
+    "should change '!(|)' to any" in {
+      val sy = Shrubbery.empty
+      sy.root = 0
+      sy.shrubs += (0 -> Shrub.Negation(Shrub.Union(Nil)))
+      ShrubberyAlgorithms.convertToDNF(sy)
+      sy.root should be (0)
+      sy.shrubs should be (Map(0 -> Shrub.Any))
+    }
+    def dnfAcceptsSame(tree: Tree, value: Value) = {
+      val orig: Shrubbery = Shrubbery.fromTree(tree)
+      val origCheck: Boolean = orig.accepts(value)
+      val dnf: Shrubbery = orig.copy
+      ShrubberyAlgorithms.convertToDNF(dnf)
+      val dnfCheck: Boolean = dnf.accepts(value)
+      withClue(s"Original: $tree, dnf: $dnf") {
+        dnfCheck should be(origCheck)
+      }
+    }
+    "(!(int|<>)&null&any&any) should accept null" in {
+      val sy = Shrubbery.fromTree {
+        import Tree._
+        Intersection(List(Negation(Union(List(Int, Product(List())))), Null, Any, Any))
+      }
+      ShrubberyAlgorithms.convertToDNF(sy)
+      sy.accepts(Value.Null) should be(true)
+    }
+    "!(int|<>) should accept null" in {
+      val sy = Shrubbery.fromTree {
+        import Tree._
+        Negation(Union(List(Int, Product(List()))))
+      }
+      ShrubberyAlgorithms.convertToDNF(sy)
+      sy.accepts(Value.Null) should be(true)
+    }
+    "should accept same values" in {
+      forAll(treeGen, valueGen)(dnfAcceptsSame(_, _))
+    }
+  }
+  "ShrubberyAlgorithms.reduce" - {
+    def reduceAcceptsSame(tree: Tree, value: Value) = {
+      val orig: Shrubbery = Shrubbery.fromTree(tree)
+      val origCheck: Boolean = orig.accepts(value)
+      val reduced: Shrubbery = orig.copy
+      ShrubberyAlgorithms.reduce(reduced)
+      val reducedCheck: Boolean = reduced.accepts(value)
+      withClue(s"Original: $tree, reduced: $reduced") {
+        reducedCheck should be(origCheck)
+      }
+    }
+    "should accept same values" in {
+      forAll(treeGen, valueGen)(reduceAcceptsSame(_, _))
+    }
+  }
 }
