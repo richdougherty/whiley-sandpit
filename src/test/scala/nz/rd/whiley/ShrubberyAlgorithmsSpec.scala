@@ -171,6 +171,67 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
     }
   }
   "ShrubberyAlgorithms.reduce" - {
+    def checkReduction[A](tree: Tree)(check: Shrubbery => A): A = {
+      val orig: Shrubbery = Shrubbery.fromTree(tree)
+      val reduced: Shrubbery = orig.copy
+      ShrubberyAlgorithms.reduce(reduced)
+      forAll(valueGen) { value: Value =>
+        withClue(s"Original: $tree, reduced: $reduced") {
+          reduced.accepts(value) should be(orig.accepts(value))
+        }
+      }
+      check(reduced)
+    }
+    "should reduce (|) to void" in {
+      checkReduction(Tree.Union(Nil)) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Void)
+      }
+    }
+    "should reduce !(|) to any" in {
+      checkReduction(Tree.Negation(Tree.Union(Nil))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Any)
+      }
+    }
+    "should reduce int&!int to void" in {
+      checkReduction(Tree.Intersection(List(Tree.Int, Tree.Negation(Tree.Int)))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Void)
+      }
+    }
+//    "should reduce int|!int to any" in {
+//      checkReduction(Tree.Union(List(Tree.Int, Tree.Negation(Tree.Int)))) { sy: Shrubbery =>
+//        sy(sy.root) should be(Shrub.Any)
+//      }
+//    }
+    "should reduce µX.(X|int) to int" in {
+      checkReduction(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Int)
+      }
+    }
+    "should reduce µX.!X to any" in {
+      checkReduction(Tree.Recursive("X", Tree.Negation(Tree.Variable("X")))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Any)
+      }
+    }
+    "should reduce !(µX.!X) to void" in {
+      checkReduction(Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Void)
+      }
+    }
+    "should reduce !(|(µX.!X)) to void" in {
+      checkReduction(Tree.Negation(Tree.Union(List(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Void)
+      }
+    }
+    "should reduce µX.<X> to void" in {
+      checkReduction(Tree.Recursive("X", Tree.Product(List(Tree.Variable("X"))))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Void)
+      }
+    }
+    "should reduce µX.<int,X> to void" in {
+      checkReduction(Tree.Recursive("X", Tree.Product(List(Tree.Int, Tree.Variable("X"))))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Void)
+      }
+    }
     "should accept same values" in {
       forAll(treeGen, valueGen) { (tree: Tree, value: Value) =>
         val orig: Shrubbery = Shrubbery.fromTree(tree)
