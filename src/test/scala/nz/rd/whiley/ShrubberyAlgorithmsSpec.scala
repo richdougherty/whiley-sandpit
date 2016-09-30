@@ -197,11 +197,11 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
         sy(sy.root) should be(Shrub.Void)
       }
     }
-//    "should reduce int|!int to any" in {
-//      checkReduction(Tree.Union(List(Tree.Int, Tree.Negation(Tree.Int)))) { sy: Shrubbery =>
-//        sy(sy.root) should be(Shrub.Any)
-//      }
-//    }
+    "should reduce int|!int to any" in {
+      checkReduction(Tree.Union(List(Tree.Int, Tree.Negation(Tree.Int)))) { sy: Shrubbery =>
+        sy(sy.root) should be(Shrub.Any)
+      }
+    }
     "should reduce µX.(X|int) to int" in {
       checkReduction(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) { sy: Shrubbery =>
         sy(sy.root) should be(Shrub.Int)

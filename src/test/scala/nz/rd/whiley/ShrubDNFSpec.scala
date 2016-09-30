@@ -168,6 +168,9 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
         Conj.Negs(List(Neg(false, Term.Product(List(2)))))
       )))
     }
+    "should convert int|!int to any" in {
+      (Disj(Term.Int) | !Term.Int) should be(Disj.True)
+    }
   }
 
   "ShrubberyDNF.dnf" - {

@@ -9,6 +9,7 @@ object ShrubDNF {
     def |(that: Conj.Negs): Disj
     def &(that: Neg): Disj
     def toShrub: Shrub
+    def relate(that: Disj): Relation
 
     final def |(b: Boolean): Disj = this | Disj(b)
     final def |(that: Term): Disj = this | Disj(that)
@@ -42,6 +43,11 @@ object ShrubDNF {
       override def unary_!(): Disj = False
       override def |(that: Conj.Negs): Disj = True
       override def &(that: Neg): Disj = Disj(that)
+      def relate(that: Disj): Relation = that match {
+        case Disj.True => new Relation(TTrue, TFalse, TFalse, TFalse)
+        case Disj.False => new Relation(TFalse, TTrue, TFalse, TFalse)
+        case _ => new Relation(TTrue, TTrue, TFalse, TFalse)
+      }
       override def toString: String = "Disj.True"
       override def toShrub: Shrub = Shrub.Any
     }
@@ -49,6 +55,11 @@ object ShrubDNF {
       override def unary_!(): Disj = True
       override def |(that: Conj.Negs): Disj = Disj.Conjs(that::Nil)
       override def &(that: Neg): Disj = False
+      override def relate(that: Disj): Relation = that match {
+        case Disj.True => new Relation(TFalse, TTrue, TFalse, TFalse)
+        case Disj.False => new Relation(TFalse, TFalse, TFalse, TTrue)
+        case _ => new Relation(TFalse, TFalse, TTrue, TTrue)
+      }
       override def toShrub: Shrub = Shrub.Void
       override def toString: String = "Disj.False"
     }
@@ -64,12 +75,34 @@ object ShrubDNF {
         val res = x.foldLeft[Disj](Disj.True)(_ & _)
         res
       }
-      def |(that: Conj.Negs): Disj = {
-        // Remove any Conj that is implied by the new Conj
-        val filtered: List[Conj.Negs] = conjs.filter(!_.implies(that))
-        Disj.Conjs(that::filtered)
+      override def |(that: Conj.Negs): Disj = {
+        @tailrec
+        def loop(acc: List[Conj.Negs], remaining: List[Conj.Negs]): Disj = remaining match {
+          case head :: tail =>
+            val rel = head.relate(that)
+            if (rel.posOrNeg.isTrue) {
+              this
+            } else if (rel.negOrPos.isTrue) {
+              loop(acc, tail)
+            } else if (rel.posOrPos.isTrue) {
+              Disj.True
+            } else {
+              loop(head :: acc, tail)
+            }
+          case Nil =>
+            Disj.Conjs(that :: acc)
+        }
+        loop(Nil, conjs)
       }
       override def &(that: Neg): Disj = Disj.fromConjs(conjs.map(_ & that))
+      override def relate(that: Disj): Relation = that match {
+        case Disj.True => new Relation(TTrue, TFalse, TTrue, TFalse)
+        case Disj.False => new Relation(TFalse, TTrue, TFalse, TTrue)
+        case Disj.Conjs(otherConjs) =>
+          conjs.map { conj =>
+            otherConjs.map(conj.relate(_)).reduce(_ | _).flip
+          }.reduce(_ | _).flip
+      }
       override def equals(that: Any): Boolean = that match {
         case Conjs(otherConjs) => conjs.toSet == otherConjs.toSet
         case _ => false
@@ -99,7 +132,6 @@ object ShrubDNF {
     def relate(that: Conj): Relation
     def toShrub: Shrub
 
-    final def implies(that: Conj): Boolean = relate(that).implies.isTrue
     final def unary_!(): Disj = !Disj(this)
     final def &(that: Boolean): Conj = if (that) this else Conj.False
     final def &(that: Term): Conj = this & Neg(that)
@@ -123,7 +155,7 @@ object ShrubDNF {
       override def relate(that: Conj): Relation = that match {
         case Conj.True => new Relation(TTrue, TFalse, TFalse, TFalse)
         case Conj.False => new Relation(TFalse, TTrue, TFalse, TFalse)
-        case _ => new Relation(TTrue, TTrue, TUnknown, TFalse)
+        case _ => new Relation(TTrue, TTrue, TFalse, TFalse)
       }
       override def toShrub: Shrub = Shrub.Any
       override def toString: String = "Conj.True"
