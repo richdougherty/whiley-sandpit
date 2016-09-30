@@ -8,30 +8,30 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
   import ShrubDNF._
 
   "ShrubDNF.Term" - {
-    "should have expected relationshibs" in {
-      Term.Int.relationship(Term.Int) should be(Term.Relationship.Same)
-      Term.Int.relationship(Term.Null) should be(Term.Relationship.Different)
-      Term.Int.relationship(Term.Product(Nil)) should be(Term.Relationship.Different)
-      Term.Int.relationship(Term.Product(List(1))) should be(Term.Relationship.Different)
-      Term.Int.relationship(Term.Product(List(2))) should be(Term.Relationship.Different)
+    "should have expected relationships" in {
+      Term.Int.relate(Term.Int).equal should be(TTrue)
+      Term.Int.relate(Term.Null).equal should be(TFalse)
+      Term.Int.relate(Term.Product(Nil)).equal should be(TFalse)
+      Term.Int.relate(Term.Product(List(1))).equal should be(TFalse)
+      Term.Int.relate(Term.Product(List(2))).equal should be(TFalse)
 
-      Term.Null.relationship(Term.Int) should be(Term.Relationship.Different)
-      Term.Null.relationship(Term.Null) should be(Term.Relationship.Same)
-      Term.Null.relationship(Term.Product(Nil)) should be(Term.Relationship.Different)
-      Term.Null.relationship(Term.Product(List(1))) should be(Term.Relationship.Different)
-      Term.Null.relationship(Term.Product(List(2))) should be(Term.Relationship.Different)
+      Term.Null.relate(Term.Int).equal should be(TFalse)
+      Term.Null.relate(Term.Null).equal should be(TTrue)
+      Term.Null.relate(Term.Product(Nil)).equal should be(TFalse)
+      Term.Null.relate(Term.Product(List(1))).equal should be(TFalse)
+      Term.Null.relate(Term.Product(List(2))).equal should be(TFalse)
 
-      Term.Product(Nil).relationship(Term.Int) should be(Term.Relationship.Different)
-      Term.Product(Nil).relationship(Term.Null) should be(Term.Relationship.Different)
-      Term.Product(Nil).relationship(Term.Product(Nil)) should be(Term.Relationship.Same)
-      Term.Product(Nil).relationship(Term.Product(List(1))) should be(Term.Relationship.Different)
-      Term.Product(Nil).relationship(Term.Product(List(2))) should be(Term.Relationship.Different)
+      Term.Product(Nil).relate(Term.Int).equal should be(TFalse)
+      Term.Product(Nil).relate(Term.Null).equal should be(TFalse)
+      Term.Product(Nil).relate(Term.Product(Nil)).equal should be(TTrue)
+      Term.Product(Nil).relate(Term.Product(List(1))).equal should be(TFalse)
+      Term.Product(Nil).relate(Term.Product(List(2))).equal should be(TFalse)
 
-      Term.Product(List(1)).relationship(Term.Int) should be(Term.Relationship.Different)
-      Term.Product(List(1)).relationship(Term.Null) should be(Term.Relationship.Different)
-      Term.Product(List(1)).relationship(Term.Product(Nil)) should be(Term.Relationship.Different)
-      Term.Product(List(1)).relationship(Term.Product(List(1))) should be(Term.Relationship.Same)
-      Term.Product(List(1)).relationship(Term.Product(List(2))) should be(Term.Relationship.Unknown)
+      Term.Product(List(1)).relate(Term.Int).equal should be(TFalse)
+      Term.Product(List(1)).relate(Term.Null).equal should be(TFalse)
+      Term.Product(List(1)).relate(Term.Product(Nil)).equal should be(TFalse)
+      Term.Product(List(1)).relate(Term.Product(List(1))).equal should be(TTrue)
+      Term.Product(List(1)).relate(Term.Product(List(2))).equal should be(TUnknown)
     }
   }
   "ShrubDNF.Neg" - {

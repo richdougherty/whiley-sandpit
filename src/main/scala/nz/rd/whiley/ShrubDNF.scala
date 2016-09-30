@@ -74,7 +74,7 @@ object ShrubDNF {
         case Conjs(otherConjs) => conjs.toSet == otherConjs.toSet
         case _ => false
       }
-      override def toString: String = s"Disj.Con($conjs)"
+      override def toString: String = s"Disj.Conjs($conjs)"
       override def toShrub: Shrub = conjs match {
         case neg::Nil => neg.toShrub
         case negs => Shrub.Union(negs.map(_.toShrub))
@@ -175,15 +175,15 @@ object ShrubDNF {
 
   case class Neg(sign: Boolean, term: Term) {
     def unary_!(): Neg = Neg(!sign, term)
+    def relate(that: Neg): Relation = {
+      var termRel = term.relate(that.term)
+      if (!sign) termRel = !termRel
+      if (!that.sign) termRel = (!(termRel.flip)).flip
+      termRel
+    }
     def implies(that: Neg): Boolean = {
-      import Term.Relationship._
-      val rel = term.relationship(that.term)
-      (rel, sign, that.sign) match {
-        case (Same, s1, s2) if s1 == s2 => true
-        case (Same, s1, s2) if s1 != s2 => false
-        case (Different, true, false) => true
-        case _ => false
-      }
+      val rel: Relation = relate(that)
+      rel.implies.isTrue
     }
     def toShrub: Shrub = if (sign) term.toShrub else Shrub.Negation(term.toShrub)
   }
@@ -202,12 +202,12 @@ object ShrubDNF {
   }
 
   sealed trait Term {
-    import Term.Relationship
     def unary_!(): Neg = Neg(false, this)
-    def relationship(that: Term): Relationship = (this, that) match {
-      case (a, b) if a == b => Relationship.Same
-      case (Term.Product(refs1), Term.Product(refs2)) if refs1.length == refs2.length => Relationship.Unknown
-      case _ => Relationship.Different
+    def relate(that: Term): Relation = (this, that) match {
+      // PERF: Cache relations
+      case (a, b) if a == b => new Relation(TTrue, TFalse, TFalse, TTrue)
+      case (Term.Product(refs1), Term.Product(refs2)) if refs1.length == refs2.length => new Relation(TUnknown, TUnknown, TUnknown, TTrue)
+      case _ => new Relation(TFalse, TTrue, TTrue, TTrue)
     }
     def toShrub: Shrub
   }
