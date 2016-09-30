@@ -40,6 +40,15 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
       !Neg(Term.Int) should be(Neg(false, Term.Int))
       !(!Neg(Term.Int)) should be(Neg(true, Term.Int))
     }
+    "should relate !int and !<> properly" in {
+      val rel = Neg(false, Term.Int).relate(Neg(false, Term.Product(Nil)))
+      rel.equal should be(TFalse)
+      rel.disjoint should be(TFalse)
+      rel.posAndPos should be(TTrue)
+      rel.posAndNeg should be(TTrue)
+      rel.negAndPos should be(TTrue)
+      rel.posAndPos should be(TTrue)
+    }
   }
 
   "ShrubDNF.Conj" - {
@@ -58,6 +67,15 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
       (Conj.True | Conj.False) should be(Disj.True)
       (Conj.False | Conj.True) should be(Disj.True)
       (Conj.False | Conj.False) should be(Disj.False)
+    }
+    "should relate !int and !<> properly" in {
+      val rel = Conj.Negs(List(Neg(false, Term.Int))).relate(Conj.Negs(List(Neg(false, Term.Product(Nil)))))
+      rel.equal should be(TFalse)
+      rel.disjoint should be(TFalse)
+      rel.posAndPos should be(TTrue)
+      rel.posAndNeg should be(TTrue)
+      rel.negAndPos should be(TTrue)
+      rel.posAndPos should be(TTrue)
     }
     "!null --> !null" in {
       !Conj(Term.Null) should be(Disj(Conj(!Term.Null)))
@@ -81,6 +99,12 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
     }
     "<1>&<2,3> --> false" in {
       (Conj(Term.Product(List(1))) & Conj(Term.Product(List(2,3)))) should be(Conj.False)
+    }
+    "!int&!<> --> !int&!<>" in {
+      (Conj.Negs(List(Neg(false, Term.Int))) & Conj.Negs(List(Neg(false, Term.Product(Nil))))) should be(Conj.Negs(List(
+        Neg(false, Term.Int),
+        Neg(false, Term.Product(Nil))
+      )))
     }
   }
 
