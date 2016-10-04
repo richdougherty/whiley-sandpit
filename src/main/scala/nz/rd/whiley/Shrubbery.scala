@@ -1,104 +1,134 @@
 package nz.rd.whiley
 
 import scala.annotation.tailrec
-import scala.collection.mutable
-import scala.collection.immutable
+import scala.collection.{immutable, mutable}
 
-sealed trait Shrub
-object Shrub {
-  type Id = Int
-
-  final case object Any extends Shrub
-  final case object Void extends Shrub
-  final case object Null extends Shrub
-  final case object Int extends Shrub
-  final case class Negation(child: Shrub) extends Shrub
-  final case class Union(children: List[Shrub]) extends Shrub
-  final case class Intersection(children: List[Shrub]) extends Shrub
-
-  final case class Product(children: List[Id]) extends Shrub
+sealed trait Shrub {
+  def accepts(v: Value): Boolean
 }
+object Shrub {
 
-import Shrub.Id
-
-final class Shrubbery private[Shrubbery] (
-    var root: Id,
-    val shrubs: mutable.Map[Id, Shrub],
-    var nextId: Id) {
-
-  override def toString: String = s"Shrubbery($root, $shrubs)"
-
-  def freshId(): Id = {
-    val id = nextId
-    nextId += 1
-    id
-  }
-
-  def apply(id: Id): Shrub = shrubs(id)
-  def update(id: Id, n: Shrub): Unit = {
-    shrubs.update(id, n)
-  }
-  def +=(entry: (Id, Shrub)): Unit = {
-    shrubs += entry
-  }
-  def +=(n: Shrub): Id = {
-    val id = freshId()
-    this += (id, n)
-    id
-  }
-  def copy: Shrubbery = {
-    val other = Shrubbery.empty
-    other.root = root
-    other.shrubs ++= shrubs
-    other
-  }
-
-  def accepts(v: Value): Boolean = {
-    def rootAccepts(sid: Id, v: Value): Boolean = {
-      val s: Shrub = shrubs(sid)
-      branchAccepts(s, v)
+  class Ref private (private var state: Ref.State) {
+    def getRef: Ref = {
+      @tailrec
+      def loop(curr: Ref, prev: Ref.Indirection): Ref = {
+        curr.state match {
+          case i@Ref.Indirection(r) =>
+            loop(r, i)
+          case _ =>
+            if (prev != null) { this.state = prev }
+            curr
+        }
+      }
+      loop(curr = this, prev = null)
     }
-    def branchAccepts(s: Shrub, v: Value): Boolean = (s, v) match {
-      case (Shrub.Any, _) => true
-      case (Shrub.Void, _) => false
-      case (Shrub.Int, Value.Int(_)) => true
-      case (Shrub.Null, Value.Null) => true
-      case (Shrub.Intersection(ss), _) => ss.forall(branchAccepts(_, v))
-      case (Shrub.Union(ss), _) => ss.exists(branchAccepts(_, v))
-      case (Shrub.Negation(c), _) => !branchAccepts(c, v)
-      case (Shrub.Product(sids), Value.Product(vs)) =>
-        sids.length == vs.length && (sids zip vs).forall { case (sid, v) => rootAccepts(sid, v) }
+    def isEmpty: Boolean = getRef.state match {
+      case Ref.Indirection(_) => throw new IllegalStateException("getRef shouldn't return another indirection")
+      case Ref.HoldsShrub(_) => false
+      case Ref.Empty => true
+    }
+    def get: Shrub = getRef.state match {
+      case Ref.Indirection(_) => throw new IllegalStateException("getRef shouldn't return another indirection")
+      case Ref.HoldsShrub(s) => s
+      case Ref.Empty => throw new NoSuchElementException("Shrub.Ref is empty")
+    }
+    def set(s: Shrub): Unit = getRef.state = Ref.HoldsShrub(s)
+    def link(r: Ref): Unit = getRef.state = Ref.Indirection(r)
+    def clear(): Unit = getRef.state = Ref.Empty
+    override def equals(that: Any): Boolean = that match {
+      case thatRef: Ref => getRef eq thatRef.getRef
       case _ => false
     }
-    rootAccepts(root, v)
+    override def hashCode: Int = System.identityHashCode(getRef)
+    override def toString: String = {
+      val visits = mutable.Map[Ref,Int]()
+      var nextId = 0
+      def refString(r: Ref): String = {
+        visits.get(r) match {
+          case None =>
+            val id = nextId
+            nextId += 1
+            visits += (r -> id)
+            if (r.isEmpty) "empty" else s"µX$id.(${shrubString(r.get)})"
+          case Some(id) =>
+            s"X$id"
+        }
+      }
+      def shrubString(s: Shrub): String = s match {
+        case Shrub.Any => "any"
+        case Shrub.Void => "void"
+        case Shrub.Int => "int"
+        case Shrub.Null => "null"
+        case Shrub.Negation(child) => s"!(${shrubString(child)})"
+        case Shrub.Union(children) => children.map(shrubString(_)).mkString("(|", "|", ")")
+        case Shrub.Intersection(children) => children.map(shrubString(_)).mkString("(&", "&", ")")
+        case Shrub.Product(children) => children.map(refString(_)).mkString("<", ",", ">")
+      }
+      refString(this)
+    }
   }
-}
 
-object Shrubbery {
-  def empty: Shrubbery = new Shrubbery(0, mutable.Map.empty, 0)
+  object Ref {
+    def empty(): Ref = new Ref(Empty)
+    def apply(s: Shrub): Ref = new Ref(HoldsShrub(s))
+    def apply(r: Ref): Ref = new Ref(Indirection(r))
 
-  def fromTree(tree: Tree): Shrubbery = {
+    private[Ref] sealed trait State
+    private[Ref] case object Empty extends State
+    private[Ref] case class HoldsShrub(s: Shrub) extends State
+    private[Ref] case class Indirection(r: Ref) extends State
+  }
+
+  final case object Any extends Shrub {
+    override def accepts(v: Value): Boolean = true
+  }
+  final case object Void extends Shrub {
+    override def accepts(v: Value): Boolean = false
+  }
+  final case object Null extends Shrub {
+    override def accepts(v: Value): Boolean = v == Value.Null
+  }
+  final case object Int extends Shrub {
+    override def accepts(v: Value): Boolean = v.isInstanceOf[Value.Int]
+  }
+  final case class Negation(child: Shrub) extends Shrub {
+    override def accepts(v: Value): Boolean = !child.accepts(v)
+  }
+  final case class Union(children: List[Shrub]) extends Shrub {
+    override def accepts(v: Value): Boolean = children.exists(_.accepts(v))
+  }
+  final case class Intersection(children: List[Shrub]) extends Shrub {
+    override def accepts(v: Value): Boolean = children.forall(_.accepts(v))
+  }
+
+  final case class Product(children: List[Ref]) extends Shrub {
+    override def accepts(v: Value): Boolean = v match {
+      case Value.Product(valueChildren) =>
+        children.length == valueChildren.length && (children zip valueChildren).forall { case (c, v) => c.get.accepts(v) }
+      case _ => false
+    }
+  }
+
+  def fromTree(tree: Tree): Ref = {
     val sy = fromTreeRaw(tree)
     ShrubberyAlgorithms.mergeIdentical(sy)
     sy
   }
 
-  def fromTreeRaw(tree: Tree): Shrubbery = {
+  def fromTreeRaw(tree: Tree): Ref = {
 
-    val g = empty
+    val treeRefs = mutable.Map.empty[Tree, Ref]
 
-    val treeShrubs = mutable.Map.empty[Tree, Id]
-
-    def convertRoot(tree: Tree, namedTrees: Map[String, Tree]): Id = {
-      treeShrubs.get(tree) match {
+    def convertRoot(tree: Tree, namedTrees: Map[String, Tree]): Ref = {
+      treeRefs.get(tree) match {
         case Some(id) =>
           id
         case None =>
-          val id = g.freshId()
-          treeShrubs += (tree -> id)
+          val ref = Shrub.Ref.empty() // Placeholder
+          treeRefs += (tree -> ref)
           val shrub = convert(tree, Set.empty, namedTrees)
-          g += (id -> shrub)
-          id
+          ref.set(shrub)
+          ref
       }
     }
 
@@ -123,8 +153,7 @@ object Shrubbery {
           convert(namedTrees(name), visitedNames + name, namedTrees)
       }
     }
-    g.root = convertRoot(tree, Map.empty)
-    g
+    convertRoot(tree, Map.empty)
   }
 }
 

@@ -256,7 +256,7 @@ object ShrubDNF {
     case object Null extends Term {
       override def toShrub: Shrub = Shrub.Null
     }
-    case class Product(refs: List[Shrub.Id]) extends Term {
+    case class Product(refs: List[Shrub.Ref]) extends Term {
       override def toShrub: Shrub = Shrub.Product(refs)
     }
 

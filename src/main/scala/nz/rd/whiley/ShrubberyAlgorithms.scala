@@ -1,77 +1,52 @@
 package nz.rd.whiley
 
 import scala.collection.mutable
-import Shrub.Id
+import Shrub.Ref
 
 import scala.annotation.tailrec
 
-object ShrubberyAlgorithms {
+final object ShrubberyAlgorithms {
 
-  def mergeIdentical(sy: Shrubbery): Unit = {
-    val replacements = mutable.Map.empty[Id, Id]
-    val index = mutable.Map.empty[Shrub, Id]
-    for ((sid, shrub) <- sy.shrubs) {
+  def reachable(root: Shrub.Ref): Set[Shrub.Ref] = {
+    val reached = mutable.Set[Ref]()
+    def reachRef(r: Ref): Unit = {
+      if (reached.contains(r)) () else {
+        reached += r
+        reachShrub(r.get)
+      }
+    }
+    def reachShrub(s: Shrub): Unit = s match {
+      case Shrub.Any => ()
+      case Shrub.Void => ()
+      case Shrub.Null => ()
+      case Shrub.Int => ()
+      case Shrub.Negation(child) => reachShrub(child)
+      case Shrub.Union(children) => children.foreach(reachShrub(_))
+      case Shrub.Intersection(children) => children.foreach(reachShrub(_))
+      case Shrub.Product(children) => children.foreach(reachRef(_))
+    }
+    reachRef(root)
+    reached.toSet
+  }
+
+  def mergeIdentical(root: Shrub.Ref): Unit = {
+    val index = mutable.Map.empty[Shrub, Ref]
+    for (ref <- reachable(root)) {
+      val shrub = ref.get
       index.get(shrub) match {
-        case Some(existingSid) =>
+        case Some(existingRef) =>
           // We found an identical shrub, record the ids for later updating
-          replacements += (sid -> existingSid)
+          ref.link(existingRef)
         case None =>
           // New shrub for the index
-          index += (shrub -> sid)
+          index += (shrub -> ref)
       }
-    }
-    // Remove duplicate shrubs
-    for (sid <- replacements.keys) {
-      sy.shrubs - sid
-    }
-    // Convert existing shrubs
-    def replacedId(id: Id): Id = replacements.getOrElse(id, id)
-    sy.root = replacedId(sy.root)
-    for ((sid, existingShrub) <- sy.shrubs.toList) {
-      def convert(s: Shrub): Shrub = s match {
-        case Shrub.Any => Shrub.Any
-        case Shrub.Void => Shrub.Void
-        case Shrub.Null => Shrub.Null
-        case Shrub.Int => Shrub.Int
-        case Shrub.Negation(child) =>
-          Shrub.Negation(convert(child))
-        case Shrub.Union(children) =>
-          Shrub.Union(children.map(convert(_)))
-        case Shrub.Intersection(children) =>
-          Shrub.Intersection(children.map(convert(_)))
-        case p@Shrub.Product(children) =>
-          val p2 = Shrub.Product(children.map(replacedId(_)))
-          p2
-      }
-      sy.shrubs(sid) = convert(existingShrub)
     }
   }
 
-  def garbageCollect(sy: Shrubbery): Unit = {
-    def shrubRefs(s: Shrub): Set[Id] = s match {
-      case Shrub.Any | Shrub.Void | Shrub.Null | Shrub.Int => Set.empty
-      case Shrub.Negation(child) => shrubRefs(child)
-      case Shrub.Union(children) => children.flatMap(shrubRefs(_)).toSet
-      case Shrub.Intersection(children) => children.flatMap(shrubRefs(_)).toSet
-      case p@Shrub.Product(children) => children.toSet
-    }
-    @tailrec
-    def allRefs(toVisit: List[Id], seen: Set[Id]): Set[Id] = toVisit match {
-      case Nil =>
-        seen
-      case head::tail =>
-        val newRefs = shrubRefs(sy(head))
-        allRefs(tail ++ (newRefs diff seen), seen union newRefs)
-    }
-
-    val reachable = allRefs(sy.root::Nil, Set(sy.root))
-    val toRemove = sy.shrubs.keys.toSet diff reachable
-    for (id <- toRemove) { sy.shrubs.remove(id) }
-  }
-
-  def simplifyIdentities(sy: Shrubbery): Unit = {
-    val updated = sy.shrubs.mapValues(simplifyIdentities(_))
-    sy.shrubs ++= updated
+  def simplifyIdentities(ref: Shrub.Ref): Unit = {
+    val s: Shrub = simplifyIdentities(ref.get)
+    ref.set(s)
   }
 
   def simplifyIdentities(s: Shrub): Shrub = s match {
@@ -102,7 +77,7 @@ object ShrubberyAlgorithms {
         case cs if cs.contains(Shrub.Void) => Shrub.Void
         case cs => Shrub.Intersection(cs)
       }
-    case p@Shrub.Product(children) => p
+    case p@Shrub.Product(_) => p
     case _ => s
   }
 
@@ -114,8 +89,8 @@ object ShrubberyAlgorithms {
    * results you may need to convert to disjunctive normal form
    * (DNF) first.
    */
-  def removeNonterminatingLoops(sy: Shrubbery): Unit = {
-    val shrubTermination = mutable.Map[Id, Boolean]()
+  def removeNonterminatingLoops(root: Shrub.Ref): Unit = {
+    val shrubTermination = mutable.Map[Ref, Boolean]()
 
     def mayTerminate(s: Shrub): Boolean = s match {
       case Shrub.Any => true
@@ -133,29 +108,32 @@ object ShrubberyAlgorithms {
       case _ => true
     }
 
+    val refs = reachable(root)
+
     Utils.fixpoint(shrubTermination.toMap) {
-      for ((sid, shrub) <- sy.shrubs) {
-        shrubTermination(sid) = mayTerminate(shrub)
+      for (r <- refs) {
+        shrubTermination(r) = mayTerminate(r.get)
       }
     }
 
-    for (sid <- sy.shrubs.keys) {
-      if (!shrubTermination(sid)) {
-        sy.shrubs(sid) = Shrub.Void
+    for (r <- refs) {
+      if (!shrubTermination(r)) {
+        r.set(Shrub.Void)
       }
     }
   }
 
-  def convertToDNF(sy: Shrubbery): Unit = {
-    for ((sid, s) <- sy.shrubs.toList) {
-      sy(sid) = ShrubDNF.dnf(s).toShrub
+  def convertToDNF(root: Ref): Unit = {
+    val refs = reachable(root)
+    for (r <- refs) {
+      val dnfShrub = ShrubDNF.dnf(r.get).toShrub
+      r.set(dnfShrub)
     }
   }
 
-  def reduce(sy: Shrubbery): Unit = {
-    convertToDNF(sy)
-    removeNonterminatingLoops(sy)
-    garbageCollect(sy)
+  def reduce(root: Ref): Unit = {
+    convertToDNF(root)
+    removeNonterminatingLoops(root)
   }
 
 }

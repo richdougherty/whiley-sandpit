@@ -4,51 +4,10 @@ import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 
 import Generators._
+import Shrub.Ref
 
 class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with PropertyChecks {
 
-  "ShrubberyAlgorithms.garbageCollect" - {
-    "should keep 'int' type unchanged" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Int)
-      ShrubberyAlgorithms.garbageCollect(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Int))
-    }
-    "should remove extra type from 'int'+'int' shrubbery" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Int, 1 -> Shrub.Int)
-      ShrubberyAlgorithms.garbageCollect(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Int))
-    }
-    "should keep '<int>' type unchanged" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Product(List(1)), 1 -> Shrub.Int)
-      ShrubberyAlgorithms.garbageCollect(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Product(List(1)), 1 -> Shrub.Int))
-    }
-    "should keep 'µX.<X|int>' type unchanged" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Product(List(0, 1)), 1 -> Shrub.Int)
-      ShrubberyAlgorithms.garbageCollect(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Product(List(0, 1)), 1 -> Shrub.Int))
-    }
-    "should remove extra type from '<int>'+'int' shrubbery" in {
-      val sy = Shrubbery.empty
-      sy.root = 1
-      sy.shrubs += (0 -> Shrub.Product(List(1)), 1 -> Shrub.Int)
-      ShrubberyAlgorithms.garbageCollect(sy)
-      sy.root should be (1)
-      sy.shrubs should be (Map(1 -> Shrub.Int))
-    }
-  }
   "ShrubberyAlgorithms.simplifyIdentity(Shrub)" - {
     "should simplify any shrub to any" in {
       ShrubberyAlgorithms.simplifyIdentities(Shrub.Any) should be(Shrub.Any)
@@ -72,14 +31,14 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
       ShrubberyAlgorithms.simplifyIdentities(Shrub.Negation(Shrub.Negation(Shrub.Int))) should be(Shrub.Int)
     }
   }
-  "ShrubberyAlgorithms.simplifyIdentity(Shrubbery)" - {
+  "ShrubberyAlgorithms.simplifyIdentity(Ref)" - {
     "should accept same values" in {
       forAll(treeGen, valueGen) { (tree: Tree, value: Value) =>
-        val orig: Shrubbery = Shrubbery.fromTree(tree)
-        val origCheck: Boolean = orig.accepts(value)
-        val simplified: Shrubbery = orig.copy
+        val orig: Ref = Ref(Shrub.fromTree(tree))
+        val origCheck: Boolean = orig.get.accepts(value)
+        val simplified: Ref = Ref(Shrub.fromTree(tree))
         ShrubberyAlgorithms.simplifyIdentities(simplified)
-        val simplifiedCheck: Boolean = simplified.accepts(value)
+        val simplifiedCheck: Boolean = simplified.get.accepts(value)
         withClue(s"Original: $tree, simplified: $simplified") {
           simplifiedCheck should be(origCheck)
         }
@@ -88,28 +47,23 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
   }
   "ShrubberyAlgorithms.removeNonterminatingLoops" - {
     "should keep 'int' type unchanged" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Int)
-      ShrubberyAlgorithms.removeNonterminatingLoops(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Int))
+      val ref = Ref(Shrub.Int)
+      ShrubberyAlgorithms.removeNonterminatingLoops(ref)
+      ref.get should be (Shrub.Int)
     }
     "should change 'µX.<X>' to void" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Product(List(0)))
-      ShrubberyAlgorithms.removeNonterminatingLoops(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Void))
+      val ref: Ref = Ref.empty()
+      ref.set(Shrub.Product(List(ref)))
+      ShrubberyAlgorithms.removeNonterminatingLoops(ref)
+      ref.get should be (Shrub.Void)
     }
     "should accept same values" in {
       forAll(treeGen, valueGen) { (tree: Tree, value: Value) =>
-        val orig: Shrubbery = Shrubbery.fromTree(tree)
-        val origCheck: Boolean = orig.accepts(value)
-        val removed: Shrubbery = orig.copy
+        val orig: Ref = Ref(Shrub.fromTree(tree))
+        val origCheck: Boolean = orig.get.accepts(value)
+        val removed: Ref = Ref(Shrub.fromTree(tree))
         ShrubberyAlgorithms.removeNonterminatingLoops(removed)
-        val removedCheck: Boolean = removed.accepts(value)
+        val removedCheck: Boolean = removed.get.accepts(value)
         withClue(s"Original: $tree, removed: $removed") {
           removedCheck should be(origCheck)
         }
@@ -118,52 +72,37 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
   }
   "ShrubberyAlgorithms.convertToDNF" - {
     "should keep 'int' type unchanged" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Int)
-      ShrubberyAlgorithms.convertToDNF(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Int))
+      val ref = Ref(Shrub.Int)
+      ShrubberyAlgorithms.convertToDNF(ref)
+      ref.get should be (Shrub.Int)
     }
     "should change 'null&!null' to void" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Intersection(List(Shrub.Null, Shrub.Negation(Shrub.Null))))
-      ShrubberyAlgorithms.convertToDNF(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Void))
+      val ref = Ref(Shrub.Intersection(List(Shrub.Null, Shrub.Negation(Shrub.Null))))
+      ShrubberyAlgorithms.convertToDNF(ref)
+      ref.get should be (Shrub.Void)
     }
     "should change '!(|)' to any" in {
-      val sy = Shrubbery.empty
-      sy.root = 0
-      sy.shrubs += (0 -> Shrub.Negation(Shrub.Union(Nil)))
-      ShrubberyAlgorithms.convertToDNF(sy)
-      sy.root should be (0)
-      sy.shrubs should be (Map(0 -> Shrub.Any))
+      val ref = Ref(Shrub.Negation(Shrub.Union(Nil)))
+      ShrubberyAlgorithms.convertToDNF(ref)
+      ref.get should be (Shrub.Any)
     }
     "(!(int|<>)&null&any&any) should accept null" in {
-      val sy = Shrubbery.fromTree {
-        import Tree._
-        Intersection(List(Negation(Union(List(Int, Product(List())))), Null, Any, Any))
-      }
-      ShrubberyAlgorithms.convertToDNF(sy)
-      sy.accepts(Value.Null) should be(true)
+      val ref = Ref(Shrub.Intersection(List(Shrub.Negation(Shrub.Union(List(Shrub.Int, Shrub.Product(List())))), Shrub.Null, Shrub.Any, Shrub.Any)))
+      ShrubberyAlgorithms.convertToDNF(ref)
+      ref.get.accepts(Value.Null) should be(true)
     }
     "!(int|<>) should accept null" in {
-      val sy = Shrubbery.fromTree {
-        import Tree._
-        Negation(Union(List(Int, Product(List()))))
-      }
-      ShrubberyAlgorithms.convertToDNF(sy)
-      sy.accepts(Value.Null) should be(true)
+      val ref = Ref(Shrub.Negation(Shrub.Union(List(Shrub.Int, Shrub.Product(List())))))
+      ShrubberyAlgorithms.convertToDNF(ref)
+      ref.get.accepts(Value.Null) should be(true)
     }
     "should accept same values" in {
       forAll(treeGen, valueGen) { (tree: Tree, value: Value) =>
-        val orig: Shrubbery = Shrubbery.fromTree(tree)
-        val origCheck: Boolean = orig.accepts(value)
-        val dnf: Shrubbery = orig.copy
+        val orig: Ref = Ref(Shrub.fromTree(tree))
+        val origCheck: Boolean = orig.get.accepts(value)
+        val dnf: Ref = Ref(Shrub.fromTree(tree))
         ShrubberyAlgorithms.convertToDNF(dnf)
-        val dnfCheck: Boolean = dnf.accepts(value)
+        val dnfCheck: Boolean = dnf.get.accepts(value)
         withClue(s"Original: $tree, dnf: $dnf") {
           dnfCheck should be(origCheck)
         }
@@ -171,74 +110,74 @@ class ShrubberyAlgorithmsSpec extends FreeSpec with Matchers with Inside with Pr
     }
   }
   "ShrubberyAlgorithms.reduce" - {
-    def checkReduction[A](tree: Tree)(check: Shrubbery => A): A = {
-      val orig: Shrubbery = Shrubbery.fromTree(tree)
-      val reduced: Shrubbery = orig.copy
+    def checkReduction[A](tree: Tree)(check: Ref => A): A = {
+      val orig: Ref = Ref(Shrub.fromTree(tree))
+      val reduced: Ref = Ref(Shrub.fromTree(tree))
       ShrubberyAlgorithms.reduce(reduced)
       forAll(valueGen) { value: Value =>
         withClue(s"Original: $tree, reduced: $reduced") {
-          reduced.accepts(value) should be(orig.accepts(value))
+          reduced.get.accepts(value) should be(orig.get.accepts(value))
         }
       }
       check(reduced)
     }
     "should reduce (|) to void" in {
-      checkReduction(Tree.Union(Nil)) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Void)
+      checkReduction(Tree.Union(Nil)) { ref: Ref =>
+        ref.get should be(Shrub.Void)
       }
     }
     "should reduce !(|) to any" in {
-      checkReduction(Tree.Negation(Tree.Union(Nil))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Any)
+      checkReduction(Tree.Negation(Tree.Union(Nil))) { ref: Ref =>
+        ref.get should be(Shrub.Any)
       }
     }
     "should reduce int&!int to void" in {
-      checkReduction(Tree.Intersection(List(Tree.Int, Tree.Negation(Tree.Int)))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Void)
+      checkReduction(Tree.Intersection(List(Tree.Int, Tree.Negation(Tree.Int)))) { ref: Ref =>
+        ref.get should be(Shrub.Void)
       }
     }
     "should reduce int|!int to any" in {
-      checkReduction(Tree.Union(List(Tree.Int, Tree.Negation(Tree.Int)))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Any)
+      checkReduction(Tree.Union(List(Tree.Int, Tree.Negation(Tree.Int)))) { ref: Ref =>
+        ref.get should be(Shrub.Any)
       }
     }
     "should reduce µX.(X|int) to int" in {
-      checkReduction(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Int)
+      checkReduction(Tree.Recursive("X", Tree.Union(List(Tree.Variable("X"), Tree.Int)))) { ref: Ref =>
+        ref.get should be(Shrub.Int)
       }
     }
     "should reduce µX.!X to any" in {
-      checkReduction(Tree.Recursive("X", Tree.Negation(Tree.Variable("X")))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Any)
+      checkReduction(Tree.Recursive("X", Tree.Negation(Tree.Variable("X")))) { ref: Ref =>
+        ref.get should be(Shrub.Any)
       }
     }
     "should reduce !(µX.!X) to void" in {
-      checkReduction(Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Void)
+      checkReduction(Tree.Negation(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))) { ref: Ref =>
+        ref.get should be(Shrub.Void)
       }
     }
     "should reduce !(|(µX.!X)) to void" in {
-      checkReduction(Tree.Negation(Tree.Union(List(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Void)
+      checkReduction(Tree.Negation(Tree.Union(List(Tree.Recursive("X", Tree.Negation(Tree.Variable("X"))))))) { ref: Ref =>
+        ref.get should be(Shrub.Void)
       }
     }
     "should reduce µX.<X> to void" in {
-      checkReduction(Tree.Recursive("X", Tree.Product(List(Tree.Variable("X"))))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Void)
+      checkReduction(Tree.Recursive("X", Tree.Product(List(Tree.Variable("X"))))) { ref: Ref =>
+        ref.get should be(Shrub.Void)
       }
     }
     "should reduce µX.<int,X> to void" in {
-      checkReduction(Tree.Recursive("X", Tree.Product(List(Tree.Int, Tree.Variable("X"))))) { sy: Shrubbery =>
-        sy(sy.root) should be(Shrub.Void)
+      checkReduction(Tree.Recursive("X", Tree.Product(List(Tree.Int, Tree.Variable("X"))))) { ref: Ref =>
+        ref.get should be(Shrub.Void)
       }
     }
     "should accept same values" in {
       forAll(treeGen, valueGen) { (tree: Tree, value: Value) =>
-        val orig: Shrubbery = Shrubbery.fromTree(tree)
-        val origCheck: Boolean = orig.accepts(value)
-        val reduced: Shrubbery = orig.copy
+        val orig: Ref = Ref(Shrub.fromTree(tree))
+        val origCheck: Boolean = orig.get.accepts(value)
+        val reduced: Ref = Ref(Shrub.fromTree(tree))
         ShrubberyAlgorithms.reduce(reduced)
-        val reducedCheck: Boolean = reduced.accepts(value)
+        val reducedCheck: Boolean = reduced.get.accepts(value)
         withClue(s"Original: $tree, reduced: $reduced") {
           reducedCheck should be(origCheck)
         }

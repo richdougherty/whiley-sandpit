@@ -7,31 +7,35 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
 
   import ShrubDNF._
 
+  val ref1 = Shrub.Ref.empty()
+  val ref2 = Shrub.Ref.empty()
+  val ref3 = Shrub.Ref.empty()
+
   "ShrubDNF.Term" - {
     "should have expected relationships" in {
       Term.Int.relate(Term.Int).equal should be(TTrue)
       Term.Int.relate(Term.Null).equal should be(TFalse)
       Term.Int.relate(Term.Product(Nil)).equal should be(TFalse)
-      Term.Int.relate(Term.Product(List(1))).equal should be(TFalse)
-      Term.Int.relate(Term.Product(List(2))).equal should be(TFalse)
+      Term.Int.relate(Term.Product(List(ref1))).equal should be(TFalse)
+      Term.Int.relate(Term.Product(List(ref2))).equal should be(TFalse)
 
       Term.Null.relate(Term.Int).equal should be(TFalse)
       Term.Null.relate(Term.Null).equal should be(TTrue)
       Term.Null.relate(Term.Product(Nil)).equal should be(TFalse)
-      Term.Null.relate(Term.Product(List(1))).equal should be(TFalse)
-      Term.Null.relate(Term.Product(List(2))).equal should be(TFalse)
+      Term.Null.relate(Term.Product(List(ref1))).equal should be(TFalse)
+      Term.Null.relate(Term.Product(List(ref2))).equal should be(TFalse)
 
       Term.Product(Nil).relate(Term.Int).equal should be(TFalse)
       Term.Product(Nil).relate(Term.Null).equal should be(TFalse)
       Term.Product(Nil).relate(Term.Product(Nil)).equal should be(TTrue)
-      Term.Product(Nil).relate(Term.Product(List(1))).equal should be(TFalse)
-      Term.Product(Nil).relate(Term.Product(List(2))).equal should be(TFalse)
+      Term.Product(Nil).relate(Term.Product(List(ref1))).equal should be(TFalse)
+      Term.Product(Nil).relate(Term.Product(List(ref2))).equal should be(TFalse)
 
-      Term.Product(List(1)).relate(Term.Int).equal should be(TFalse)
-      Term.Product(List(1)).relate(Term.Null).equal should be(TFalse)
-      Term.Product(List(1)).relate(Term.Product(Nil)).equal should be(TFalse)
-      Term.Product(List(1)).relate(Term.Product(List(1))).equal should be(TTrue)
-      Term.Product(List(1)).relate(Term.Product(List(2))).equal should be(TUnknown)
+      Term.Product(List(ref1)).relate(Term.Int).equal should be(TFalse)
+      Term.Product(List(ref1)).relate(Term.Null).equal should be(TFalse)
+      Term.Product(List(ref1)).relate(Term.Product(Nil)).equal should be(TFalse)
+      Term.Product(List(ref1)).relate(Term.Product(List(ref1))).equal should be(TTrue)
+      Term.Product(List(ref1)).relate(Term.Product(List(ref2))).equal should be(TUnknown)
     }
   }
   "ShrubDNF.Neg" - {
@@ -87,18 +91,18 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
       Conj(Term.Int) & !Conj(Term.Null) should be(Disj(Term.Int))
     }
     "<1>&<2> --> <1>&<2>" in {
-      (Conj(Term.Product(List(1))) & Conj(Term.Product(List(2)))) should be((Conj(Term.Product(List(1))) & Conj(Term.Product(List(2)))))
+      (Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2)))) should be((Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2)))))
     }
     "!<1>&<2> --> !<1>&<2>" in {
-      (!Conj(Term.Product(List(1))) & Conj(Term.Product(List(2)))) should be(
+      (!Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2)))) should be(
         Disj(Conj.Negs(List(
-          Neg(false, Term.Product(List(1))),
-          Neg(true, Term.Product(List(2)))
+          Neg(false, Term.Product(List(ref1))),
+          Neg(true, Term.Product(List(ref2)))
         )))
       )
     }
     "<1>&<2,3> --> false" in {
-      (Conj(Term.Product(List(1))) & Conj(Term.Product(List(2,3)))) should be(Conj.False)
+      (Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2,ref3)))) should be(Conj.False)
     }
     "!int&!<> --> !int&!<>" in {
       (Conj.Negs(List(Neg(false, Term.Int))) & Conj.Negs(List(Neg(false, Term.Product(Nil))))) should be(Conj.Negs(List(
@@ -163,9 +167,9 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
       (Disj(Term.Product(Nil)) & Term.Int) should be(Disj.False)
     }
     "should convert int|<1>|!<2> to <1>|!<2>" in {
-      (Disj(Term.Int) | Term.Product(List(1)) | !Term.Product(List(2))) should be(Disj.Conjs(List(
-        Conj.Negs(List(Neg(true, Term.Product(List(1))))),
-        Conj.Negs(List(Neg(false, Term.Product(List(2)))))
+      (Disj(Term.Int) | Term.Product(List(ref1)) | !Term.Product(List(ref2))) should be(Disj.Conjs(List(
+        Conj.Negs(List(Neg(true, Term.Product(List(ref1))))),
+        Conj.Negs(List(Neg(false, Term.Product(List(ref2)))))
       )))
     }
     "should convert int|!int to any" in {
