@@ -1,5 +1,7 @@
 package nz.rd.whiley
 
+import nz.rd.whiley.Shrub.Ref
+
 import scala.annotation.tailrec
 
 object ShrubDNF {
@@ -183,7 +185,19 @@ object ShrubDNF {
             } else if (rel.posAndPos.isFalse) {
               Conj.False
             } else {
-              loop(head :: acc, tail)
+              (head, that) match {
+                case (Neg(aSign, Term.Product(aRefs)), Neg(bSign, Term.Product(bRefs))) =>
+                  assert(aRefs.length == bRefs.length)
+                  val combined = Neg(true, Term.Product((aRefs zip bRefs).map {
+                    case (aChildRef, bChildRef) =>
+                      val aChildShrub: Shrub = if (aSign) aChildRef.get else Shrub.Negation(aChildRef.get)
+                      val bChildShrub: Shrub = if (bSign) bChildRef.get else Shrub.Negation(bChildRef.get)
+                      Ref(Shrub.Intersection(List(aChildShrub, bChildShrub)))
+                  }))
+                  Conj.Negs(acc++(combined::tail))
+                case _ =>
+                  loop(head :: acc, tail)
+              }
             }
           case Nil =>
             Conj.Negs(that :: acc)

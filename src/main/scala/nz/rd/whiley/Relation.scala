@@ -42,6 +42,8 @@ final class Relation(
   def equal: Ternary = !negAndPos & !posAndNeg
   def disjoint: Ternary = !posAndPos
   def implies: Ternary = !posAndNeg
+
+  override def toString: String = s"Relation(+&+: $posAndPos, +&-: $posAndNeg, -&+: $negAndPos, -&-: $negAndNeg)"
 }
 
 object Relation {

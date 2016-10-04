@@ -1,5 +1,6 @@
 package nz.rd.whiley
 
+import nz.rd.whiley.Shrub.Ref
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 
@@ -90,16 +91,29 @@ class ShrubDNFSpec extends FreeSpec with Matchers with Inside with PropertyCheck
     "int&!null --> int" in {
       Conj(Term.Int) & !Conj(Term.Null) should be(Disj(Term.Int))
     }
-    "<1>&<2> --> <1>&<2>" in {
-      (Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2)))) should be((Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2)))))
+    "<1>&<2> --> <1&2>" in {
+      val x: Ref = Ref(Shrub.Int)
+      val y: Ref = Ref(Shrub.Null)
+      val xAndY = (Conj(Term.Product(List(x))) & Conj(Term.Product(List(y))))
+      inside(xAndY) {
+        case Conj.Negs(List(Neg(true, Term.Product(List(z))))) => ()
+          inside(z.get) {
+            case Shrub.Intersection(intersected) =>
+              intersected should contain only (Shrub.Int, Shrub.Null)
+          }
+      }
     }
     "!<1>&<2> --> !<1>&<2>" in {
-      (!Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2)))) should be(
-        Disj(Conj.Negs(List(
-          Neg(false, Term.Product(List(ref1))),
-          Neg(true, Term.Product(List(ref2)))
-        )))
-      )
+      val x: Ref = Ref(Shrub.Int)
+      val y: Ref = Ref(Shrub.Null)
+      val xAndY = ((!Conj(Term.Product(List(x)))) & Conj(Term.Product(List(y))))
+      inside(xAndY) {
+        case Disj.Conjs(List(Conj.Negs(List(Neg(true, Term.Product(List(z))))))) => ()
+          inside(z.get) {
+            case Shrub.Intersection(intersected) =>
+              intersected should contain only (Shrub.Negation(Shrub.Int), Shrub.Null)
+          }
+      }
     }
     "<1>&<2,3> --> false" in {
       (Conj(Term.Product(List(ref1))) & Conj(Term.Product(List(ref2,ref3)))) should be(Conj.False)
