@@ -50,30 +50,24 @@ final object ShrubberyAlgorithms {
   }
 
   def simplifyIdentities(s: Shrub): Shrub = s match {
-    case Shrub.Any => Shrub.Any
-    case Shrub.Void => Shrub.Void
-    case Shrub.Null => Shrub.Null
-    case Shrub.Int => Shrub.Int
     case Shrub.Negation(Shrub.Negation((c))) => c
     case Shrub.Union(children) =>
       children.map(simplifyIdentities(_)).flatMap {
-        case Shrub.Void => Nil
         case Shrub.Union(children) => children
         case c => c::Nil
-      }.distinct match {
+      }.filter(_ != Shrub.Void).distinct match {
         case Nil => Shrub.Void
-        case List(c) => c
+        case c::Nil => c
         case cs if cs.contains(Shrub.Any) => Shrub.Any
         case cs => Shrub.Union(cs)
       }
     case Shrub.Intersection(children) =>
       children.map(simplifyIdentities(_)).flatMap {
-        case Shrub.Any => Nil
         case Shrub.Intersection(children) => children
         case c => c::Nil
-      }.distinct match {
+      }.filter(_ != Shrub.Any).distinct match {
         case Nil => Shrub.Any
-        case List(c) => c
+        case c::Nil => c
         case cs if cs.contains(Shrub.Void) => Shrub.Void
         case cs => Shrub.Intersection(cs)
       }
@@ -97,15 +91,10 @@ final object ShrubberyAlgorithms {
       case Shrub.Void => false
       case Shrub.Null => true
       case Shrub.Int => true
-      case Shrub.Negation(Shrub.Any) => false
-      case Shrub.Negation(Shrub.Void) => true
-      case Shrub.Negation(Shrub.Int) => true
-      case Shrub.Negation(Shrub.Null) => true
-      case Shrub.Negation(Shrub.Product(_)) => true
+      case Shrub.Negation(_) => true
       case Shrub.Union(children) => children.map(mayTerminate).foldLeft(false)(_ | _)
       case Shrub.Intersection(children) => children.map(mayTerminate).foldLeft(true)(_ & _)
       case Shrub.Product(refs) => refs.map(shrubTermination.getOrElse(_, false)).foldLeft(true)(_ & _)
-      case _ => true
     }
 
     val refs = reachable(root)
